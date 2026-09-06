@@ -1,12 +1,11 @@
 const LOCKED_AUTHOR = "SIYAM-HASAN";
 const { createCanvas } = require("canvas");
-const fs = require("fs-extra");
-const path = require("path");
 const os = require("os");
 
 module.exports = {
   name: "up",
-  version: "6.0.0",
+  aliases: ["status", "আপ", "uptime"],
+  version: "6.1.0",
   author: LOCKED_AUTHOR,
   category: "system",
   description: "Advanced real-time status card with detailed system info",
@@ -18,7 +17,7 @@ module.exports = {
 
     const loadingMsg = await bot.sendMessage(
       chatId,
-      "⚙️ *System status card is generating...*",
+      "⚙️ *Generating system status card...*",
       { parse_mode: "Markdown", reply_to_message_id: messageId }
     );
 
@@ -39,8 +38,9 @@ module.exports = {
       const totalMemGB = (os.totalmem() / 1024 / 1024 / 1024).toFixed(1);
       const freeMemGB = (os.freemem() / 1024 / 1024 / 1024).toFixed(1);
       const usedMemGB = (totalMemGB - freeMemGB).toFixed(1);
-      const memPercent = ((1 - os.freemem() / os.totalmem()) * 100).toFixed(1);
-      const heapPercent = ((memory.heapUsed / memory.heapTotal) * 100).toFixed(1);
+
+      const memPercent = Math.min(100, Math.max(0, ((1 - os.freemem() / os.totalmem()) * 100))).toFixed(1);
+      const heapPercent = Math.min(100, Math.max(0, ((memory.heapUsed / memory.heapTotal) * 100))).toFixed(1);
 
       const platform = os.platform();
       const arch = os.arch();
@@ -74,7 +74,7 @@ module.exports = {
       ctx.fillStyle = light2;
       ctx.fillRect(0, 0, width, height);
 
-      // Main Card
+      // Main Card Container
       ctx.save();
       ctx.shadowColor = "rgba(139, 92, 246, 0.35)";
       ctx.shadowBlur = 30;
@@ -88,7 +88,7 @@ module.exports = {
       roundRect(ctx, 35, 35, 910, 570, 28);
       ctx.stroke();
 
-      // Header
+      // Header Bar
       const headerGrad = ctx.createLinearGradient(55, 55, 925, 55);
       headerGrad.addColorStop(0, "#7c3aed");
       headerGrad.addColorStop(1, "#06b6d4");
@@ -101,7 +101,7 @@ module.exports = {
       ctx.textAlign = "center";
       ctx.fillText("SIYAM-HASAN  •  BOT STATUS", 490, 98);
 
-      // Big Uptime
+      // Big Uptime Display
       ctx.fillStyle = "rgba(24, 24, 46, 0.95)";
       roundRect(ctx, 60, 145, 860, 90, 14);
       ctx.fill();
@@ -116,7 +116,7 @@ module.exports = {
       ctx.fillStyle = "#ffffff";
       ctx.fillText(`${days}d   ${hours}h   ${minutes}m   ${seconds}s`, 490, 215);
 
-      // 4 Info Boxes
+      // 4 Metrics Boxes
       const boxes = [
         { title: "PING", value: `${ping} ms`, x: 60, color: "#34d399" },
         { title: "PROCESS RAM", value: `${usedRAM} MB`, x: 280, color: "#fbbf24" },
@@ -163,7 +163,7 @@ module.exports = {
       roundRect(ctx, 85, 410, 380, 14, 7);
       ctx.fill();
       ctx.fillStyle = "#fbbf24";
-      roundRect(ctx, 85, 410, Math.min(380, 380 * (heapPercent / 100)), 14, 7);
+      roundRect(ctx, 85, 410, (380 * heapPercent) / 100, 14, 7);
       ctx.fill();
 
       // System RAM Bar
@@ -174,7 +174,7 @@ module.exports = {
       roundRect(ctx, 500, 410, 380, 14, 7);
       ctx.fill();
       ctx.fillStyle = "#22d3ee";
-      roundRect(ctx, 500, 410, Math.min(380, 380 * (memPercent / 100)), 14, 7);
+      roundRect(ctx, 500, 410, (380 * memPercent) / 100, 14, 7);
       ctx.fill();
 
       ctx.font = "12px Arial";
@@ -182,7 +182,7 @@ module.exports = {
       ctx.fillText(`${usedRAM} / ${totalHeap} MB`, 85, 445);
       ctx.fillText(`${usedMemGB} / ${totalMemGB} GB`, 500, 445);
 
-      // Bottom Details
+      // Bottom Specs Section
       ctx.fillStyle = "rgba(24, 24, 46, 0.95)";
       roundRect(ctx, 60, 480, 860, 95, 12);
       ctx.fill();
@@ -209,7 +209,7 @@ module.exports = {
       ctx.fillText(String(pid), 620, 515);
       ctx.fillText("ONLINE", 640, 550);
 
-      // Footer
+      // Footer Label
       ctx.textAlign = "right";
       ctx.font = "bold 14px Arial";
       ctx.fillStyle = "#c4b5fd";
@@ -218,25 +218,17 @@ module.exports = {
       ctx.fillStyle = "#7c3aed";
       ctx.fillText("Premium Real-time Card", 890, 555);
 
-      // Save Image
-      const cachePath = path.join(__dirname, "cache");
-      await fs.ensureDir(cachePath);
-      const filePath = path.join(cachePath, `status_${Date.now()}.png`);
+      // Buffer এ রূপান্তর
       const buffer = canvas.toBuffer("image/png");
-      await fs.writeFile(filePath, buffer);
 
-      // Delete Loading Message
+      // লোডিং মেসেজ ডিলিট ও ফটো সেন্ড
       await bot.deleteMessage(chatId, loadingMsg.message_id);
 
-      // Send Photo
-      await bot.sendPhoto(chatId, filePath, {
+      await bot.sendPhoto(chatId, buffer, {
         caption: "📊 *BOT REAL-TIME SYSTEM STATUS*",
         parse_mode: "Markdown",
         reply_to_message_id: messageId
       });
-
-      // Cleanup
-      setTimeout(() => fs.unlink(filePath).catch(() => {}), 15000);
 
     } catch (err) {
       console.error("Status Card Error:", err);
