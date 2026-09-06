@@ -2,9 +2,9 @@
   "name": "telegram-multi-bot",
   "version": "1.0.0",
   "description": "Telegram All-in-One Bot",
-  "main": "index.js",
+  "main": "runner.js",
   "scripts": {
-    "start": "node index.js"
+    "start": "node runner.js"
   },
   "dependencies": {
     "node-telegram-bot-api": "^0.66.0",
