@@ -1,13 +1,13 @@
 module.exports = {
-    ownerID: 61591371186179,
+    ownerID: 8442705758,
 
     adminIDs: [
-        61591371186179
+        8442705758
     ],
 
     whitelistMode: false,
 
     whitelistedIDs: [
-        61591371186179
+        8442705758
     ]
 };
