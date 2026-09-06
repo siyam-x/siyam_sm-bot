@@ -1,15 +1,14 @@
-const fs = require("fs");
-const { downloadVideo } = require("sagor-video-downloader");
+const axios = require("axios");
 
 const AUTHOR = "𝐒𝐈𝐘𝐀𝐌-𝐇𝐀𝐒𝐀𝐍";
 const COMMAND_NAME = "downloader";
 
 module.exports = {
     name: COMMAND_NAME,
-    version: "1.3",
+    version: "2.0.0",
     author: AUTHOR,
     category: "media",
-    description: "Auto-download & send videos silently when link is sent",
+    description: "Auto-download videos from Facebook, TikTok, Instagram & YouTube",
 
     execute: async (bot, msg, text) => {
         if (
@@ -26,62 +25,73 @@ module.exports = {
         const linkMatches = messageText.match(/(https?:\/\/[^\s]+)/g);
         if (!linkMatches || linkMatches.length === 0) return;
 
-        const uniqueLinks = [...new Set(linkMatches)];
+        const url = linkMatches[0];
+
+        // ১. লোডিং মেসেজ পাঠানো
+        const loadingMsg = await bot.sendMessage(
+            chatId, 
+            "⏳ *ভিডিওটি প্রসেস করা হচ্ছে, অনুগ্রহ করে অপেক্ষা করুন...*", 
+            { parse_mode: 'Markdown', reply_to_message_id: messageId }
+        );
 
         try {
-            await bot.setMessageReaction(chatId, messageId, { reaction: "💋" });
-        } catch (e) {
-            // রিয়্যাকশন না দিতে পারলে কাজ থমকে যাবে না
-        }
+            // মাল্টি-প্ল্যাটফর্ম ভিডিও ডাউনলোডার এপিআই
+            const apiUrl = `https://api.tiklydown.eu.org/api/download?url=${encodeURIComponent(url)}`;
+            const response = await axios.get(apiUrl);
+            const data = response.data;
 
-        let successCount = 0;
-        let failCount = 0;
+            let videoUrl = null;
+            let title = "Downloaded Video";
 
-        for (const url of uniqueLinks) {
-            try {
-                const { title, filePath } = await downloadVideo(url);
-                if (!filePath || !fs.existsSync(filePath)) throw new Error("File download failed");
+            if (data && data.video && data.video.noWatermark) {
+                videoUrl = data.video.noWatermark;
+                title = data.title || title;
+            } else if (data && data.url) {
+                videoUrl = data.url;
+            }
 
-                const stats = fs.statSync(filePath);
-                const fileSizeInMB = stats.size / (1024 * 1024);
-
-                if (fileSizeInMB > 49) { // টেলিগ্রামের সাধারণ ফাইল লিমিট ৫০ এমবি
-                    fs.unlinkSync(filePath);
-                    failCount++;
-                    continue;
+            // ব্যাকআপ এপিআই (প্রথমটি ব্যর্থ হলে এটি কাজ করবে)
+            if (!videoUrl) {
+                const backupApi = `https://ruhend-api.onrender.com/api/alldown?url=${encodeURIComponent(url)}`;
+                const backupRes = await axios.get(backupApi);
+                if (backupRes.data && backupRes.data.data && backupRes.data.data.high) {
+                    videoUrl = backupRes.data.data.high;
+                    title = backupRes.data.data.title || title;
                 }
+            }
 
-                const caption = 
+            if (!videoUrl) {
+                throw new Error("Video stream URL not found.");
+            }
+
+            // ২. ডাউনলোড সফল হলে লোডিং মেসেজ ডিলিট করে ভিডিও পাঠানো
+            await bot.deleteMessage(chatId, loadingMsg.message_id);
+
+            const caption = 
 `📥 𝐕𝐈𝐃𝐄𝐎 𝐃𝐎𝐖𝐍𝐋𝐎𝐀𝐃𝐄𝐃
 ━━━━━━━━━━━━━━━
-🎬 𝐓𝐈𝐓𝐋𝐄 : ${title || "Video File"}
-📦 𝐒𝐈𝐙𝐄 : ${fileSizeInMB.toFixed(2)} 𝐌𝐁
+🎬 𝐓𝐈𝐓𝐋𝐄: ${title}
 ━━━━━━━━━━━━━━━
 🦋 ‿𝗡𝗜𝗝𝗛𝗨𝗠 𝗖𝗛𝗔𝗧𝗕𝗢𝗧`;
 
-                await bot.sendVideo(chatId, filePath, {
-                    caption: caption,
-                    reply_to_message_id: messageId
-                });
+            await bot.sendVideo(chatId, videoUrl, {
+                caption: caption,
+                reply_to_message_id: messageId,
+                parse_mode: 'Markdown'
+            });
 
-                if (fs.existsSync(filePath)) {
-                    fs.unlinkSync(filePath);
+        } catch (err) {
+            console.error("Download Error:", err.message);
+
+            // ৩. ব্যর্থ হলে লোডিং মেসেজ এডিট করে ফেল মেসেজ দেওয়া
+            await bot.editMessageText(
+                "❌ *ভিডিওটি ডাউনলোড করা সম্ভব হয়নি!*\n\n👉 লিংকটি সঠিক কিনা নিশ্চিত করুন অথবা প্রাইভেট ভিডিও কিনা পরীক্ষা করুন।", 
+                {
+                    chat_id: chatId,
+                    message_id: loadingMsg.message_id,
+                    parse_mode: 'Markdown'
                 }
-
-                successCount++;
-
-            } catch (err) {
-                console.error("Download Error:", err.message);
-                failCount++;
-            }
+            );
         }
-
-        const finalReaction =
-            successCount > 0 && failCount === 0 ? "🎉" :
-            successCount > 0 ? "⚠️" : "❌";
-
-        try {
-            await bot.setMessageReaction(chatId, messageId, { reaction: finalReaction });
-        } catch (e) {}
     }
 };
