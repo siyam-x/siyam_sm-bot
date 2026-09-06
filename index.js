@@ -8,42 +8,66 @@ const token = '8884423430:AAGbbPC8cYHH1Iy-5n1QIcn79iILXIDISSE';
 const bot = new TelegramBot(token, { polling: true });
 
 const commands = new Map();
+const aliases = new Map();
 bot.commands = commands;
+bot.aliases = aliases;
 
 const commandsDir = path.join(__dirname, 'commands');
+const eventsDir = path.join(__dirname, 'events');
+const privateDir = path.join(__dirname, 'private');
 
-if (!fs.existsSync(commandsDir)) {
-    fs.mkdirSync(commandsDir);
-}
+[commandsDir, eventsDir, privateDir].forEach(dir => {
+    if (!fs.existsSync(dir)) {
+        fs.mkdirSync(dir, { recursive: true });
+    }
+});
 
-function loadCommands() {
-    commands.clear();
-    const files = fs.readdirSync(commandsDir);
-    
-    for (const file of files) {
-        if (file.endsWith('.js')) {
-            const filePath = path.join(commandsDir, file);
-            delete require.cache[require.resolve(filePath)];
-            try {
-                const command = require(filePath);
-                if (command.name && typeof command.execute === 'function') {
-                    commands.set(command.name, command);
-                    console.log(`✅ Loaded module: [${command.name}]`);
-                }
-            } catch (error) {
-                console.error(`❌ Error loading ${file}:`, error.message);
-            }
+function registerCommand(command) {
+    if (command.name && typeof command.execute === 'function') {
+        commands.set(command.name, command);
+        if (command.aliases && Array.isArray(command.aliases)) {
+            command.aliases.forEach(alias => {
+                aliases.set(alias, command.name);
+            });
         }
     }
 }
 
-loadCommands();
+function loadAllModules() {
+    commands.clear();
+    aliases.clear();
 
-fs.watch(commandsDir, (eventType, filename) => {
-    if (filename && filename.endsWith('.js')) {
-        console.log(`🔄 New file detected in commands folder. Auto-reloading...`);
-        loadCommands();
-    }
+    const loadFromDirectory = (dirPath, label) => {
+        if (!fs.existsSync(dirPath)) return;
+        const files = fs.readdirSync(dirPath);
+        for (const file of files) {
+            if (file.endsWith('.js')) {
+                const filePath = path.join(dirPath, file);
+                delete require.cache[require.resolve(filePath)];
+                try {
+                    const command = require(filePath);
+                    registerCommand(command);
+                    console.log(`✅ Loaded ${label}: [${command.name || file}]`);
+                } catch (error) {
+                    console.error(`❌ Error loading ${file} from ${label}:`, error.message);
+                }
+            }
+        }
+    };
+
+    loadFromDirectory(commandsDir, 'commands');
+    loadFromDirectory(privateDir, 'private');
+}
+
+loadAllModules();
+
+[commandsDir, privateDir].forEach(dir => {
+    fs.watch(dir, (eventType, filename) => {
+        if (filename && filename.endsWith('.js')) {
+            console.log(`🔄 Changes detected in ${path.basename(dir)}. Auto-reloading...`);
+            loadAllModules();
+        }
+    });
 });
 
 bot.on('message', async (msg) => {
@@ -51,9 +75,25 @@ bot.on('message', async (msg) => {
     const chatId = msg.chat.id;
     const userId = msg.from.id;
 
+    if (fs.existsSync(eventsDir)) {
+        const eventFiles = fs.readdirSync(eventsDir).filter(file => file.endsWith('.js'));
+        for (const file of eventFiles) {
+            try {
+                const eventPath = path.join(eventsDir, file);
+                delete require.cache[require.resolve(eventPath)];
+                const event = require(eventPath);
+                if (event.execute && typeof event.execute === 'function') {
+                    event.execute(bot, msg);
+                }
+            } catch (err) {
+                console.error(`Event ${file} Error:`, err.message);
+            }
+        }
+    }
+
     if (config.whitelistMode) {
-        const isWhitelisted = config.whitelistedIDs.includes(userId);
-        const isAdmin = config.adminIDs.includes(userId) || userId === config.ownerID;
+        const isWhitelisted = config.whitelistedIDs && config.whitelistedIDs.includes(userId);
+        const isAdmin = (config.adminIDs && config.adminIDs.includes(userId)) || userId === config.ownerID;
         
         if (!isWhitelisted && !isAdmin) {
             return bot.sendMessage(chatId, '⚠️ *এই বটটি বর্তমানে প্রাইভেট মোডে আছে। আপনার ব্যবহারের অনুমতি নেই।*', { parse_mode: 'Markdown' });
@@ -73,7 +113,7 @@ bot.on('message', async (msg) => {
             `👤 *Profile Picture:* \`/pp\`\n` +
             `ℹ️ *Info:* \`/info\`\n` +
             `📜 *All Commands:* \`/help\`\n\n` +
-            `📁 *Auto-Loader Active:* \`commands\` ফোল্ডারে ফাইল যোগ করলেই স্বয়ংক্রিয়ভাবে কাজ করবে।`,
+            `📁 *Auto-Loader Active:* \`commands\`, \`events\`, এবং \`private\` ফোল্ডারে ফাইল যোগ করলেই স্বয়ংক্রিয়ভাবে কাজ করবে।`,
             { parse_mode: 'Markdown' }
         );
     }
@@ -88,13 +128,15 @@ bot.on('message', async (msg) => {
 
     if (text.startsWith('/')) {
         const args = text.slice(1).split(/ +/);
-        const commandName = args.shift().toLowerCase();
+        const inputCommand = args.shift().toLowerCase();
 
-        if (commands.has(commandName)) {
-            const command = commands.get(commandName);
+        const actualCommandName = commands.has(inputCommand) ? inputCommand : aliases.get(inputCommand);
+
+        if (actualCommandName && commands.has(actualCommandName)) {
+            const command = commands.get(actualCommandName);
 
             if (command.adminOnly) {
-                const isAdmin = config.adminIDs.includes(userId) || userId === config.ownerID;
+                const isAdmin = (config.adminIDs && config.adminIDs.includes(userId)) || userId === config.ownerID;
                 if (!isAdmin) {
                     return bot.sendMessage(chatId, '❌ *এই কমান্ডটি শুধুমাত্র বটের ওনার বা অ্যাডমিন ব্যবহার করতে পারবে!*', { parse_mode: 'Markdown' });
                 }
@@ -103,13 +145,13 @@ bot.on('message', async (msg) => {
             try {
                 return await command.execute(bot, msg, args.join(' '));
             } catch (error) {
-                console.error(`Error executing ${commandName}:`, error);
-                return bot.sendMessage(chatId, '❌ *কমান্ডটি রান করতে কোনো সমস্যা হয়েছে!*', { parse_mode: 'Markdown' });
+                console.error(`Error executing ${actualCommandName}:`, error);
+                return bot.sendMessage(chatId, '❌ *কমান্ডটি রান করতে কোনো সমস্যা হয়েছে!*', { parse_mode: 'Markdown' });
             }
         } else {
             return bot.sendMessage(
                 chatId,
-                `❌ *"/${commandName}" কমান্ডটি নেই!*\n\n👉 *সব কমান্ড দেখতে "/help" লিখুন।*`,
+                `❌ *"/${inputCommand}" কমান্ডটি নেই!*\n\n👉 *সব কমান্ড দেখতে "/help" লিখুন।*`,
                 { parse_mode: 'Markdown' }
             );
         }
