@@ -3,7 +3,7 @@ const fs = require('fs');
 const path = require('path');
 const config = require('./config');
 
-const token = '8884423430:AAGbbPC8cYHH1Iy-5n1QIcn79iILXIDISSE';
+const token = '8973277623:AAE8rALePkquP5UaQJNShK45U8AQ-Q6VBlc';
 
 const bot = new TelegramBot(token, { polling: true });
 
