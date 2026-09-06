@@ -1,46 +1,87 @@
-const axios = require('axios');
+const fs = require("fs");
+const { downloadVideo } = require("sagor-video-downloader");
+
+const AUTHOR = "𝐒𝐈𝐘𝐀𝐌-𝐇𝐀𝐒𝐀𝐍";
+const COMMAND_NAME = "downloader";
 
 module.exports = {
-    name: 'downloader',
-    description: 'Auto Universal Video Downloader',
-    execute: async (bot, msg, url) => {
+    name: COMMAND_NAME,
+    version: "1.3",
+    author: AUTHOR,
+    category: "media",
+    description: "Auto-download & send videos silently when link is sent",
+
+    execute: async (bot, msg, text) => {
+        if (
+            module.exports.author !== AUTHOR ||
+            module.exports.name !== COMMAND_NAME
+        ) {
+            return;
+        }
+
         const chatId = msg.chat.id;
-        const statusMsg = await bot.sendMessage(chatId, '📥 ভিডিওটি প্রসেস করা হচ্ছে, কিছুক্ষণ অপেক্ষা করুন...');
+        const messageId = msg.message_id;
+        const messageText = text || msg.text || "";
+
+        const linkMatches = messageText.match(/(https?:\/\/[^\s]+)/g);
+        if (!linkMatches || linkMatches.length === 0) return;
+
+        const uniqueLinks = [...new Set(linkMatches)];
 
         try {
-            const apiUrl = `https://api.tiklydown.eu.org/api/download?url=${encodeURIComponent(url)}`;
-            const response = await axios.get(apiUrl);
-
-            let videoUrl = null;
-
-            if (response.data && response.data.video) {
-                videoUrl = response.data.video.noWatermark || response.data.video.watermark;
-            } else if (response.data && response.data.url) {
-                videoUrl = response.data.url;
-            }
-
-            if (!videoUrl) {
-                const altApi = `https://m.phimhot.pro/api/fb?url=${encodeURIComponent(url)}`;
-                const altRes = await axios.get(altApi);
-                if (altRes.data && altRes.data.hd) videoUrl = altRes.data.hd;
-                else if (altRes.data && altRes.data.sd) videoUrl = altRes.data.sd;
-            }
-
-            if (!videoUrl) {
-                await bot.deleteMessage(chatId, statusMsg.message_id);
-                return bot.sendMessage(chatId, '❌ ভিডিওটি ডাউনলোড করা সম্ভব হয়নি। লিংকটি প্রাইভেট অথবা সাপোর্ট করছে না।');
-            }
-
-            await bot.sendVideo(chatId, videoUrl, {
-                caption: '✅ *Here is your Downloaded Video!*',
-                parse_mode: 'Markdown'
-            });
-
-            await bot.deleteMessage(chatId, statusMsg.message_id);
-        } catch (error) {
-            console.error('Download Error:', error.message);
-            await bot.deleteMessage(chatId, statusMsg.message_id);
-            bot.sendMessage(chatId, '❌ ভিডিও ডাউনলোড করতে সমস্যা হয়েছে!');
+            await bot.setMessageReaction(chatId, messageId, { reaction: "💋" });
+        } catch (e) {
+            // রিয়্যাকশন না দিতে পারলে কাজ থমকে যাবে না
         }
+
+        let successCount = 0;
+        let failCount = 0;
+
+        for (const url of uniqueLinks) {
+            try {
+                const { title, filePath } = await downloadVideo(url);
+                if (!filePath || !fs.existsSync(filePath)) throw new Error("File download failed");
+
+                const stats = fs.statSync(filePath);
+                const fileSizeInMB = stats.size / (1024 * 1024);
+
+                if (fileSizeInMB > 49) { // টেলিগ্রামের সাধারণ ফাইল লিমিট ৫০ এমবি
+                    fs.unlinkSync(filePath);
+                    failCount++;
+                    continue;
+                }
+
+                const caption = 
+`📥 𝐕𝐈𝐃𝐄𝐎 𝐃𝐎𝐖𝐍𝐋𝐎𝐀𝐃𝐄𝐃
+━━━━━━━━━━━━━━━
+🎬 𝐓𝐈𝐓𝐋𝐄 : ${title || "Video File"}
+📦 𝐒𝐈𝐙𝐄 : ${fileSizeInMB.toFixed(2)} 𝐌𝐁
+━━━━━━━━━━━━━━━
+🦋 ‿𝗡𝗜𝗝𝗛𝗨𝗠 𝗖𝗛𝗔𝗧𝗕𝗢𝗧`;
+
+                await bot.sendVideo(chatId, filePath, {
+                    caption: caption,
+                    reply_to_message_id: messageId
+                });
+
+                if (fs.existsSync(filePath)) {
+                    fs.unlinkSync(filePath);
+                }
+
+                successCount++;
+
+            } catch (err) {
+                console.error("Download Error:", err.message);
+                failCount++;
+            }
+        }
+
+        const finalReaction =
+            successCount > 0 && failCount === 0 ? "🎉" :
+            successCount > 0 ? "⚠️" : "❌";
+
+        try {
+            await bot.setMessageReaction(chatId, messageId, { reaction: finalReaction });
+        } catch (e) {}
     }
 };
