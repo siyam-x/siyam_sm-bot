@@ -1,3 +1,5 @@
+const axios = require('axios');
+
 module.exports = {
     name: 'img',
     version: '1.0.0',
@@ -15,16 +17,25 @@ module.exports = {
         try {
             const imageUrl = `https://pollinations.ai/p/${encodeURIComponent(prompt)}?width=1024&height=1024&seed=${Math.floor(Math.random() * 1000000)}&nologo=true`;
 
-            await bot.sendPhoto(chatId, imageUrl, {
+            // Axios দিয়ে ছবি Buffer হিসেবে ডাউনলোড করা হচ্ছে
+            const response = await axios.get(imageUrl, { responseType: 'arraybuffer' });
+            const imageBuffer = Buffer.from(response.data, 'utf-8');
+
+            // Telegram-এ Buffer পাঠানো হচ্ছে
+            await bot.sendPhoto(chatId, imageBuffer, {
                 caption: `🎨 *Generated Image:* "${prompt}"\n👑 *Author:* Siyam Hasan`,
                 parse_mode: 'Markdown'
             });
 
-            await bot.deleteMessage(chatId, statusMsg.message_id);
+            // মেসেজ ডিলিট করা
+            await bot.deleteMessage(chatId, statusMsg.message_id).catch(() => {});
         } catch (error) {
             console.error('Image Error:', error.message);
-            await bot.deleteMessage(chatId, statusMsg.message_id);
-            bot.sendMessage(chatId, '❌ ছবি তৈরি করতে সমস্যা হয়েছে!');
+            
+            // ডিলিট করার সময় কোনো এরর এড়াতে try-catch হ্যান্ডলিং
+            await bot.deleteMessage(chatId, statusMsg.message_id).catch(() => {});
+            
+            bot.sendMessage(chatId, '❌ ছবি তৈরি করতে সমস্যা হয়েছে!');
         }
     }
 };
