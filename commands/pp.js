@@ -1,48 +1,64 @@
 module.exports = {
-    name: 'pp',
-    version: '1.0.0',
-    author: 'Siyam Hasan',
-    description: 'Get User Profile Picture',
-    execute: async (bot, msg) => {
+    name: "pp",
+    aliases: ["profile", "avatar"],
+    role: 0,
+    execute: async (bot, msg, args) => {
         const chatId = msg.chat.id;
-
-        // রিপ্লাই দেওয়া ইউজার থাকলে তার ID, না হয় যে কমান্ড দিচ্ছে তার ID
-        let targetUser = msg.from;
-        if (msg.reply_to_message) {
-            targetUser = msg.reply_to_message.from;
-        }
+        
+        // ⚙️ পরিবর্তন করুন: আপনার বটের Username এবং Owner এর Username দিন (@ ছাড়া)
+        const BOT_USERNAME = "YourBotUsername"; 
+        const OWNER_USERNAME = "YourOwnerUsername"; 
 
         try {
-            // ইউজারের প্রোফাইল ফটোজ ফেচ করা
-            const userPhotos = await bot.getUserProfilePhotos(targetUser.id, { limit: 1 });
+            let targetUser = msg.from;
 
-            if (!userPhotos || userPhotos.total_count === 0) {
-                return bot.sendMessage(
-                    chatId,
-                    `❌ *${targetUser.first_name}* এর কোনো প্রোফাইল পিকচার সেট করা নেই অথবা প্রাইভেসি দেওয়া আছে।`,
-                    { parse_mode: 'Markdown' }
-                );
+            // ১. যদি কোনো মেসেজে রিপ্লাই দেওয়া থাকে
+            if (msg.reply_to_message) {
+                targetUser = msg.reply_to_message.from;
             }
 
-            // সবচেয়ে হাই-রেজুলেশনের ছবি সিলেক্ট করা
-            const photoArray = userPhotos.photos[0];
-            const highestResPhoto = photoArray[photoArray.length - 1].file_id;
+            const userId = targetUser.id;
+            const firstName = targetUser.first_name || "User";
 
-            const name = targetUser.first_name + (targetUser.last_name ? ` ${targetUser.last_name}` : '');
-            const username = targetUser.username ? `@${targetUser.username}` : 'নাই';
+            // প্রোফাইল পিকচার সংগ্রহ করা
+            const userProfilePhotos = await bot.getUserProfilePhotos(userId, { limit: 1 });
 
-            await bot.sendPhoto(chatId, highestResPhoto, {
-                caption: `👤 *Profile Picture Details*\n\n` +
-                         `📛 *Name:* ${name}\n` +
-                         `🆔 *User ID:* \`${targetUser.id}\`\n` +
-                         `🔗 *Username:* ${username}\n\n` +
-                         `👑 *Author:* Siyam Hasan`,
-                parse_mode: 'Markdown'
-            });
+            const captionText = 
+`👑 𝐒𝐈𝐘𝐀𝐌-𝐇𝐀𝐒𝐀𝐍 👑
+───────────────
+📸 𝗣𝗥𝗢𝗙𝗜𝗟𝗘 𝗣𝗜𝗖𝗧𝗨𝗥𝗘
+👤 𝐍𝐚𝐦𝐞: ${firstName}
+🆔 𝐔𝐈𝐃: \`${userId}\`
+🌸 আপনার পিকচার!
+───────────────
+🧚‍♀️𝐍𝗜𝗝𝗛𝗨𝗠 𝗖𝗛𝗔𝗧𝗕𝗢𝗧`;
+
+            const replyMarkup = {
+                inline_keyboard: [
+                    [
+                        { text: "𝐀𝐃𝐃 𝐆𝐑𝐎𝐔𝐏", url: `https://t.me/${BOT_USERNAME}?startgroup=true` },
+                        { text: "𝐎𝐖𝐍𝐄𝐑", url: `https://t.me/${OWNER_USERNAME}` }
+                    ]
+                ]
+            };
+
+            if (userProfilePhotos.total_count > 0) {
+                const fileId = userProfilePhotos.photos[0][2]?.file_id || userProfilePhotos.photos[0][0].file_id;
+                return await bot.sendPhoto(chatId, fileId, {
+                    caption: captionText,
+                    parse_mode: "Markdown",
+                    reply_markup: replyMarkup
+                });
+            } else {
+                return await bot.sendMessage(chatId, captionText + "\n\n⚠️ *ইউজারের কোনো প্রোফাইল পিকচার পাওয়া যায়নি!*", {
+                    parse_mode: "Markdown",
+                    reply_markup: replyMarkup
+                });
+            }
 
         } catch (error) {
-            console.error('PP Error:', error.message);
-            bot.sendMessage(chatId, '❌ প্রোফাইল পিকচার নিয়ে আসতে সমস্যা হয়েছে!');
+            console.error("PP Command Error:", error);
+            return bot.sendMessage(chatId, "❌ প্রোফাইল পিকচার আনতে কোনো সমস্যা হয়েছে!");
         }
     }
 };
