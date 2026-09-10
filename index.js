@@ -3,9 +3,7 @@ const fs = require('fs');
 const path = require('path');
 const config = require('./config');
 
-const token = '8973277623:AAE8rALePkquP5UaQJNShK45U8AQ-Q6VBlc';
-
-const bot = new TelegramBot(token, { polling: true });
+const bot = new TelegramBot(config.botToken, { polling: true });
 
 const commands = new Map();
 const aliases = new Map();
@@ -61,19 +59,25 @@ function loadAllModules() {
 
 loadAllModules();
 
-[commandsDir, privateDir].forEach(dir => {
-    fs.watch(dir, (eventType, filename) => {
-        if (filename && filename.endsWith('.js')) {
-            console.log(`🔄 Changes detected in ${path.basename(dir)}. Auto-reloading...`);
-            loadAllModules();
-        }
-    });
-});
+function getUserRole(userId) {
+    if (userId === config.ownerID || (config.adminIDs && config.adminIDs.includes(userId))) {
+        return 2;
+    }
+    if (config.role1IDs && config.role1IDs.includes(userId)) {
+        return 1;
+    }
+    return 0;
+}
 
 bot.on('message', async (msg) => {
     const text = msg.text ? msg.text.trim() : '';
     const chatId = msg.chat.id;
     const userId = msg.from.id;
+    const userRole = getUserRole(userId);
+
+    if (config.bannedUsers && config.bannedUsers.includes(userId)) {
+        return bot.sendMessage(chatId, 'আপনি ব্যান');
+    }
 
     if (fs.existsSync(eventsDir)) {
         const eventFiles = fs.readdirSync(eventsDir).filter(file => file.endsWith('.js'));
@@ -83,7 +87,7 @@ bot.on('message', async (msg) => {
                 delete require.cache[require.resolve(eventPath)];
                 const event = require(eventPath);
                 if (event.execute && typeof event.execute === 'function') {
-                    event.execute(bot, msg);
+                    event.execute(bot, msg, userRole);
                 }
             } catch (err) {
                 console.error(`Event ${file} Error:`, err.message);
@@ -93,69 +97,56 @@ bot.on('message', async (msg) => {
 
     if (config.whitelistMode) {
         const isWhitelisted = config.whitelistedIDs && config.whitelistedIDs.includes(userId);
-        const isAdmin = (config.adminIDs && config.adminIDs.includes(userId)) || userId === config.ownerID;
-        
-        if (!isWhitelisted && !isAdmin) {
-            return bot.sendMessage(chatId, '⚠️ *এই বটটি বর্তমানে প্রাইভেট মোডে আছে। আপনার ব্যবহারের অনুমতি নেই।*', { parse_mode: 'Markdown' });
+        if (!isWhitelisted && userRole < 2) {
+            return bot.sendMessage(chatId, '⚠️ এই বটটি বর্তমানে প্রাইভেট মোডে আছে। আপনার ব্যবহারের অনুমতি নেই।');
         }
     }
 
     if (!text) return;
 
-    if (text === '/start') {
+    const currentPrefix = config.prefix;
+
+    if (text === '/start' || text === `${currentPrefix}start`) {
         return bot.sendMessage(
             chatId,
-            `🤖 *Welcome to Universal Telegram Bot!*\n\n` +
-            `📹 *Video Downloader:* যেকোনো ভিডিও লিংক পাঠালে অটোমেটিক ডাউনলোড হবে।\n` +
-            `🤖 *AI Chat:* \`/ai আপনার প্রশ্ন\`\n` +
-            `🎨 *AI Image:* \`/img ছবির বিবরণ\`\n` +
-            `👶 *Baby Chat:* \`/baby কথা\`\n` +
-            `👤 *Profile Picture:* \`/pp\`\n` +
-            `ℹ️ *Info:* \`/info\`\n` +
-            `📜 *All Commands:* \`/help\`\n\n` +
-            `📁 *Auto-Loader Active:* \`commands\`, \`events\`, এবং \`private\` ফোল্ডারে ফাইল যোগ করলেই স্বয়ংক্রিয়ভাবে কাজ করবে।`,
-            { parse_mode: 'Markdown' }
+            `🤖 Welcome to Telegram Bot!\n\nPrefix: ${currentPrefix}\nYour Role: ${userRole}\n\nType ${currentPrefix}ping to test.`
         );
     }
 
-    const urlRegex = /(https?:\/\/[^\s]+)/gi;
-    if (urlRegex.test(text) && !text.startsWith('/')) {
-        const downloader = commands.get('downloader');
-        if (downloader) {
-            return downloader.execute(bot, msg, text);
-        }
+    let commandText = '';
+    if (currentPrefix === '' || text.startsWith(currentPrefix)) {
+        commandText = currentPrefix === '' ? text : text.slice(currentPrefix.length);
+    } else {
+        return;
     }
 
-    if (text.startsWith('/')) {
-        const args = text.slice(1).split(/ +/);
-        const inputCommand = args.shift().toLowerCase();
+    const args = commandText.split(/ +/);
+    const inputCommand = args.shift().toLowerCase();
 
-        const actualCommandName = commands.has(inputCommand) ? inputCommand : aliases.get(inputCommand);
+    if (!inputCommand) return;
 
-        if (actualCommandName && commands.has(actualCommandName)) {
-            const command = commands.get(actualCommandName);
+    const actualCommandName = commands.has(inputCommand) ? inputCommand : aliases.get(inputCommand);
 
-            if (command.adminOnly) {
-                const isAdmin = (config.adminIDs && config.adminIDs.includes(userId)) || userId === config.ownerID;
-                if (!isAdmin) {
-                    return bot.sendMessage(chatId, '❌ *এই কমান্ডটি শুধুমাত্র বটের ওনার বা অ্যাডমিন ব্যবহার করতে পারবে!*', { parse_mode: 'Markdown' });
-                }
-            }
+    if (actualCommandName && commands.has(actualCommandName)) {
+        const command = commands.get(actualCommandName);
 
-            try {
-                return await command.execute(bot, msg, args.join(' '));
-            } catch (error) {
-                console.error(`Error executing ${actualCommandName}:`, error);
-                return bot.sendMessage(chatId, '❌ *কমান্ডটি রান করতে কোনো সমস্যা হয়েছে!*', { parse_mode: 'Markdown' });
-            }
-        } else {
-            return bot.sendMessage(
-                chatId,
-                `❌ *"/${inputCommand}" কমান্ডটি নেই!*\n\n👉 *সব কমান্ড দেখতে "/help" লিখুন।*`,
-                { parse_mode: 'Markdown' }
-            );
+        const requiredRole = command.role || 0;
+        if (userRole < requiredRole) {
+            return bot.sendMessage(chatId, `❌ এই কমান্ডটি ব্যবহার করার অনুমতি আপনার নেই! (Required Role: ${requiredRole})`);
         }
+
+        try {
+            return await command.execute(bot, msg, args, { role: userRole });
+        } catch (error) {
+            console.error(`Error executing ${actualCommandName}:`, error);
+            return bot.sendMessage(chatId, '❌ কমান্ডটি রান করতে কোনো সমস্যা হয়েছে!');
+        }
+    } else {
+        return bot.sendMessage(
+            chatId,
+            `❌ "${inputCommand}" কমান্ডটি নেই!`
+        );
     }
 });
 
-console.log('🚀 Bot is running successfully with Token!');
+console.log('🚀 Telegram Bot is running successfully!');
