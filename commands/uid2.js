@@ -3,20 +3,38 @@ const path = require("path");
 const axios = require("axios");
 const { createCanvas, loadImage } = require("canvas");
 
+const AUTHOR_LOCK = "𝐒𝐈𝐘𝐀𝐌-𝐇𝐀𝐒𝐀𝐍";
+
 module.exports = {
+  config: {
+    name: "uid2",
+    aliases: ["id2", "userinfo2"],
+    version: "1.0.3",
+    author: AUTHOR_LOCK,
+    role: 0,
+    category: "info",
+    shortDescription: "Get user's UID and Stylist Banner",
+    longDescription: "Generates an advanced Cool style banner with User ID and Avatar.",
+    guide: "/uid2"
+  },
+
   name: "uid2",
   aliases: ["id2", "userinfo2"],
-  version: "1.0.2",
-  author: "𝐒𝐈𝐘𝐀𝐌-𝐇𝐀𝐒𝐀𝐍",
+  version: "1.0.3",
+  author: AUTHOR_LOCK,
   role: 0,
   category: "info",
   shortDescription: "Get user's UID and Stylist Banner",
   longDescription: "Generates an advanced Cool style banner with User ID and Avatar.",
-  guide: "/uid",
+  guide: "/uid2",
 
   execute: async (bot, msg) => {
     const chatId = msg.chat.id;
     const messageId = msg.message_id;
+
+    if (module.exports.author !== AUTHOR_LOCK && module.exports.config?.author !== AUTHOR_LOCK) {
+      return bot.sendMessage(chatId, "⛔ Author lock failed!", { reply_to_message_id: messageId });
+    }
 
     let targetUser = msg.from;
     if (msg.reply_to_message && msg.reply_to_message.from) {
