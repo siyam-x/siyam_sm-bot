@@ -21,7 +21,7 @@ function downloadGif(url, dest) {
 }
 
 module.exports = {
-  name: "about",
+  name: "botinfo",
   aliases: ["botinfo"],
   version: "6.3",
   author: "𝐒𝐈𝐘𝐀𝐌-𝐇𝐀𝐒𝐀𝐍",
@@ -36,13 +36,9 @@ module.exports = {
     const messageId = msg.message_id;
     const prefix = config.prefix || "/";
 
-    let botUsername = "Unknown";
-    try {
-      const me = await bot.getMe();
-      botUsername = me.username ? `@${me.username}` : me.first_name;
-    } catch (e) {}
-
-    const ownerId = config.ownerID || "Not Set";
+    const BOT_USERNAME = "SiyamSM_2026Bot";
+    const OWNER_USERNAME = "ri_siyam";
+    const ownerId = config.ownerID || "8442705758";
     const userRole = context?.role !== undefined ? context.role : 0;
 
     const fancyFont = (str) =>
@@ -75,8 +71,10 @@ module.exports = {
 `┏━━━━━━━━━━━━━┓
  👑 𝐁𝐎𝐓 & 𝐎𝐖𝐍𝐄𝐑 𝐈𝐍𝐅𝐎
 ┗━━━━━━━━━━━━━┛
- 🤖 𝐁𝐨𝐭 𝐔𝐬𝐞𝐫𝐧𝐚𝐦𝐞 : \`${botUsername}\`
+ 📁 𝐅𝐢𝐥𝐞 𝐍𝐚𝐦𝐞     : \`about.js\`
+ 🤖 𝐁𝐨𝐭 𝐔𝐬𝐞𝐫𝐧𝐚𝐦𝐞 : \`@${BOT_USERNAME}\`
  👑 𝐎𝐰𝐧𝐞𝐫 𝐍𝐚𝐦𝐞   : 𝐒𝐈𝐘𝐀𝐌-𝐇𝐀𝐒𝐀𝐍
+ 👤 𝐎𝐰𝐧𝐞𝐫 𝐔𝐬𝐞𝐫 : \`@${OWNER_USERNAME}\`
  🆔 𝐎𝐰𝐧𝐞𝐫 𝐔𝐈𝐃    : \`${ownerId}\`
  ✍️ 𝐀𝐮𝐭𝐡𝐨𝐫       : 𝐒𝐈𝐘𝐀𝐌-𝐇𝐀𝐒𝐀𝐍
  📁 𝐂𝐚𝐭𝐞𝐠𝐨𝐫𝐲    : ${categoryFont("SYSTEM")}
@@ -89,8 +87,11 @@ module.exports = {
     const replyMarkup = {
       inline_keyboard: [
         [
-          { text: "𝐀𝐃𝐃 𝐆𝐑𝐎𝐔𝐏", url: `https://t.me/${botUsername.replace('@', '')}?startgroup=true` },
-          { text: "𝐎𝐖𝐍𝐄𝐑", url: `tg://user?id=${ownerId}` }
+          { text: "➕ 𝐀𝐃𝐃 𝐆𝐑𝐎𝐔𝐏", url: `https://t.me/${BOT_USERNAME}?startgroup=true` },
+          { text: "👑 𝐎𝐖𝐍𝐄𝐑", url: `https://t.me/${OWNER_USERNAME}` }
+        ],
+        [
+          { text: "💬 𝐂𝐎𝐍𝐓𝐀𝐂𝐓 𝐎𝐖𝐍𝐄𝐑", url: `https://t.me/${OWNER_USERNAME}` }
         ]
       ]
     };
