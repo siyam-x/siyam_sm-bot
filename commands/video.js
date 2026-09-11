@@ -63,6 +63,48 @@ module.exports = {
     return null;
   },
 
+  getDownloadUrl: async function (video) {
+    const baseApi = await getWorkingBaseApi();
+    const videoId = video.id || (video.url ? video.url.split("v=")[1] : null);
+    const videoUrl = video.url || `https://www.youtube.com/watch?v=${videoId}`;
+
+    const downloadMethods = [
+      async () => {
+        if (!videoId) return null;
+        const res = await axios.get(`${baseApi}/api/ytb/get?id=${videoId}&type=video`, { timeout: 15000 });
+        return res.data?.data?.downloadLink || res.data?.downloadLink || res.data?.videoUrl;
+      },
+      async () => {
+        const res = await axios.get(`https://betadash-search-download.vercel.app/yt?url=${encodeURIComponent(videoUrl)}`, { timeout: 15000 });
+        return res.data?.mp4 || res.data?.downloadUrl || res.data?.video;
+      },
+      async () => {
+        const res = await axios.post(`https://api.cobalt.tools/api/json`, {
+          url: videoUrl
+        }, {
+          headers: { "Accept": "application/json", "Content-Type": "application/json" },
+          timeout: 15000
+        });
+        return res.data?.url;
+      },
+      async () => {
+        const res = await axios.get(`https://api.vyt.workers.dev/?url=${encodeURIComponent(videoUrl)}`, { timeout: 15000 });
+        return res.data?.url || res.data?.download;
+      }
+    ];
+
+    for (let downloadTask of downloadMethods) {
+      try {
+        const link = await downloadTask();
+        if (link) return link;
+      } catch (e) {
+        continue;
+      }
+    }
+
+    return null;
+  },
+
   execute: async (bot, msg, argsText) => {
     const chatId = msg.chat.id;
     const messageId = msg.message_id;
@@ -104,31 +146,9 @@ module.exports = {
         { chat_id: chatId, message_id: searchingMsg.message_id }
       );
 
-      const baseApi = await getWorkingBaseApi();
-      const videoId = video.id || (video.url ? video.url.split("v=")[1] : null);
+      const downloadUrl = await module.exports.getDownloadUrl(video);
 
-      let downloadUrl = null;
-
-      try {
-        if (videoId) {
-          const dlRes = await axios.get(`${baseApi}/api/ytb/get?id=${videoId}&type=video`, { timeout: 15000 });
-          downloadUrl = dlRes.data?.data?.downloadLink || dlRes.data?.downloadLink;
-        }
-      } catch (e) {}
-
-      if (!downloadUrl) {
-        try {
-          const cobaltRes = await axios.post(`https://api.cobalt.tools/api/json`, {
-            url: video.url
-          }, {
-            headers: { "Accept": "application/json", "Content-Type": "application/json" },
-            timeout: 15000
-          });
-          downloadUrl = cobaltRes.data?.url;
-        } catch (e) {}
-      }
-
-      if (!downloadUrl) throw new Error("Download link not available.");
+      if (!downloadUrl) throw new Error("Download link not available currently.");
 
       try {
         await bot.deleteMessage(chatId, searchingMsg.message_id);
