@@ -4,6 +4,18 @@ const axios = require("axios");
 const { createCanvas, loadImage } = require("canvas");
 
 module.exports = {
+  config: {
+    name: "uid",
+    aliases: ["id", "userinfo"],
+    version: "0.0.1",
+    author: "𝐒𝐈𝐘𝐀𝐌-𝐇𝐀𝐒𝐀𝐍",
+    role: 0,
+    category: "info",
+    shortDescription: "Get user's UID and Stylist Banner",
+    longDescription: "Generates an advanced Cool style banner with User ID and Avatar.",
+    guide: "/uid"
+  },
+
   name: "uid",
   aliases: ["id", "userinfo"],
   version: "0.0.1",
@@ -129,7 +141,7 @@ module.exports = {
       ctx.font = "25px Courier New";
       ctx.shadowBlur = 0;
       ctx.fillText("/// IDENTITY VERIFIED /// ", 480, 330);
-      ctx.fillText("⚡ POWERED BY: 𝐒𝐈𝐘𝐀𝐌-𝐇𝐀𝐒𝐀Ns", 480, 370);
+      ctx.fillText("⚡ POWERED BY: 𝐒𝐈𝐘𝐀𝐌-𝐇𝐀𝐒𝐀𝐍", 480, 370);
 
       ctx.fillStyle = "#ffffff";
       for (let k = 0; k < 20; k++) {
