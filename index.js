@@ -3,8 +3,32 @@ const fs = require('fs');
 const path = require('path');
 const config = require('./config');
 
+// ১. গ্লোবাল এরর হ্যান্ডলার (বট যেন ক্র্যাশ বা হ্যাং না করে)
+process.on('uncaughtException', (err) => {
+    console.error('Crash Prevented - Uncaught Exception:', err.message);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+    console.error('Crash Prevented - Unhandled Rejection:', reason);
+});
+
 const token = config.botToken;
-const bot = new TelegramBot(token, { polling: true });
+
+// ২. সেফ ও অটো-রিকানেক্ট পোলিং সেটিংস
+const bot = new TelegramBot(token, { 
+    polling: {
+        interval: 300,
+        autoStart: true,
+        params: {
+            timeout: 10
+        }
+    }
+});
+
+// পোলিং ড্রপ বা নেটওয়ার্ক এরর হ্যান্ডলার
+bot.on('polling_error', (error) => {
+    console.log(`[Polling Error]: ${error.message}`);
+});
 
 const commands = new Map();
 const aliases = new Map();
@@ -107,94 +131,100 @@ bot.on('callback_query', async (query) => {
 
 // ==================== MESSAGE HANDLER ====================
 bot.on('message', async (msg) => {
-    const text = msg.text ? msg.text.trim() : '';
-    const chatId = msg.chat.id;
-    const userId = msg.from ? msg.from.id : 0;
-    const userRole = getUserRole(userId);
+    try {
+        if (!msg) return;
 
-    let eventHandled = false;
-    if (fs.existsSync(eventsDir)) {
-        const eventFiles = fs.readdirSync(eventsDir).filter(file => file.endsWith('.js'));
-        for (const file of eventFiles) {
-            try {
-                const eventPath = path.join(eventsDir, file);
-                delete require.cache[require.resolve(eventPath)];
-                const event = require(eventPath);
-                if (event.execute && typeof event.execute === 'function') {
-                    const handled = await event.execute(bot, msg, userRole);
-                    if (handled) eventHandled = true;
+        const text = msg.text ? msg.text.trim() : '';
+        const chatId = msg.chat.id;
+        const userId = msg.from ? msg.from.id : 0;
+        const userRole = getUserRole(userId);
+
+        let eventHandled = false;
+        if (fs.existsSync(eventsDir)) {
+            const eventFiles = fs.readdirSync(eventsDir).filter(file => file.endsWith('.js'));
+            for (const file of eventFiles) {
+                try {
+                    const eventPath = path.join(eventsDir, file);
+                    delete require.cache[require.resolve(eventPath)];
+                    const event = require(eventPath);
+                    if (event.execute && typeof event.execute === 'function') {
+                        const handled = await event.execute(bot, msg, userRole);
+                        if (handled) eventHandled = true;
+                    }
+                } catch (err) {
+                    console.error(`Event ${file} Error:`, err.message);
                 }
-            } catch (err) {
-                console.error(`Event ${file} Error:`, err.message);
             }
         }
-    }
 
-    if (eventHandled) return;
+        if (eventHandled) return;
 
-    if (config.whitelistMode) {
-        const isWhitelisted = config.whitelistedIDs && config.whitelistedIDs.includes(userId);
-        if (!isWhitelisted && userRole < 2) {
-            return bot.sendMessage(chatId, '⚠️ *এই বটটি বর্তমানে প্রাইভেট মোডে রয়েছে। আপনার এটি ব্যবহারের পারমিশন নেই।*', { parse_mode: 'Markdown' });
+        if (config.whitelistMode) {
+            const isWhitelisted = config.whitelistedIDs && config.whitelistedIDs.includes(userId);
+            if (!isWhitelisted && userRole < 2) {
+                return bot.sendMessage(chatId, '⚠️ *এই বটটি বর্তমানে প্রাইভেট মোডে রয়েছে। আপনার এটি ব্যবহারের পারমিশন নেই।*', { parse_mode: 'Markdown' });
+            }
         }
-    }
 
-    if (!text) return;
+        if (!text) return;
 
-    const currentPrefix = config.prefix !== undefined ? config.prefix : '/';
+        const currentPrefix = config.prefix !== undefined ? config.prefix : '/';
 
-    if (text === '/start' || (currentPrefix && text === `${currentPrefix}start`)) {
-        return bot.sendMessage(
-            chatId,
-            `🤖 **Welcome to Telegram Bot!**\n\n` +
-            `📜 **All Commands:** \`${currentPrefix}help\`\n` +
-            `🛠 **Admin Control:** \`${currentPrefix}cmd\`\n\n` +
-            `📂 **Auto-Loader:** Active and watching for script changes.`,
-            { parse_mode: 'Markdown' }
-        );
-    }
-
-    let isCommand = false;
-    let commandText = '';
-
-    if (text.startsWith('/')) {
-        isCommand = true;
-        commandText = text.slice(1);
-    } else if (currentPrefix !== '' && text.startsWith(currentPrefix)) {
-        isCommand = true;
-        commandText = text.slice(currentPrefix.length);
-    }
-
-    if (isCommand) {
-        const args = commandText.split(/ +/);
-        const inputCommand = args.shift().toLowerCase();
-
-        if (!inputCommand) return;
-
-        const actualCommandName = commands.has(inputCommand) ? inputCommand : aliases.get(inputCommand);
-
-        if (actualCommandName && commands.has(actualCommandName)) {
-            const command = commands.get(actualCommandName);
-            const requiredRole = command.role !== undefined ? command.role : (command.config?.role !== undefined ? command.config.role : 0);
-
-            if (userRole < requiredRole) {
-                return bot.sendMessage(chatId, `❌ **এই কমান্ডটি ব্যবহারের অনুমতি নেই! (প্রয়োজনীয় রোল: Role ${requiredRole})**`, { parse_mode: 'Markdown' });
-            }
-
-            try {
-                const execFunc = command.execute || command.onStart;
-                return await execFunc(bot, msg, args, { role: userRole, prefix: currentPrefix });
-            } catch (error) {
-                console.error(`Error executing ${actualCommandName}:`, error);
-                return bot.sendMessage(chatId, '❌ **কমান্ডটি রান করতে সমস্যা হয়েছে!**', { parse_mode: 'Markdown' });
-            }
-        } else {
+        if (text === '/start' || (currentPrefix && text === `${currentPrefix}start`)) {
             return bot.sendMessage(
                 chatId,
-                `❌ **"${currentPrefix}${inputCommand}" নাম নিয়ে কোনো কমান্ড পাওয়া যায়নি।**\n👉 সকল কমান্ড জানতে \`${currentPrefix}help\` টাইপ করুন।`,
+                `🤖 **Welcome to Telegram Bot!**\n\n` +
+                `📜 **All Commands:** \`${currentPrefix}help\`\n` +
+                `🛠 **Admin Control:** \`${currentPrefix}cmd\`\n\n` +
+                `📂 **Auto-Loader:** Active and watching for script changes.`,
                 { parse_mode: 'Markdown' }
             );
         }
+
+        let isCommand = false;
+        let commandText = '';
+
+        if (text.startsWith('/')) {
+            isCommand = true;
+            commandText = text.slice(1);
+        } else if (currentPrefix !== '' && text.startsWith(currentPrefix)) {
+            isCommand = true;
+            commandText = text.slice(currentPrefix.length);
+        }
+
+        if (isCommand) {
+            const args = commandText.split(/ +/);
+            const inputCommand = args.shift().toLowerCase();
+
+            if (!inputCommand) return;
+
+            const actualCommandName = commands.has(inputCommand) ? inputCommand : aliases.get(inputCommand);
+
+            if (actualCommandName && commands.has(actualCommandName)) {
+                const command = commands.get(actualCommandName);
+                const requiredRole = command.role !== undefined ? command.role : (command.config?.role !== undefined ? command.config.role : 0);
+
+                if (userRole < requiredRole) {
+                    return bot.sendMessage(chatId, `❌ **এই কমান্ডটি ব্যবহারের অনুমতি নেই! (প্রয়োজনীয় রোল: Role ${requiredRole})**`, { parse_mode: 'Markdown' });
+                }
+
+                try {
+                    const execFunc = command.execute || command.onStart;
+                    return await execFunc(bot, msg, args, { role: userRole, prefix: currentPrefix });
+                } catch (error) {
+                    console.error(`Error executing ${actualCommandName}:`, error);
+                    return bot.sendMessage(chatId, '❌ **কমান্ডটি রান করতে সমস্যা হয়েছে!**', { parse_mode: 'Markdown' });
+                }
+            } else {
+                return bot.sendMessage(
+                    chatId,
+                    `❌ **"${currentPrefix}${inputCommand}" নাম নিয়ে কোনো কমান্ড পাওয়া যায়নি।**\n👉 সকল কমান্ড জানতে \`${currentPrefix}help\` টাইপ করুন।`,
+                    { parse_mode: 'Markdown' }
+                );
+            }
+        }
+    } catch (globalMsgErr) {
+        console.error("Global Message Processing Error:", globalMsgErr.message);
     }
 });
 
