@@ -22,16 +22,24 @@ const privateDir = path.join(__dirname, 'private');
     }
 });
 
+// সব ধরনের স্টাইলের কমান্ড সাপোর্ট করার জন্য আপডেটকৃত ফাংশন
 function registerCommand(command) {
+    if (!command) return;
+
+    // নাম রিড করার ইউনিভার্সাল নিয়ম (সরাসরি name অথবা config.name)
     const cmdName = command.name || command.config?.name;
     const cmdExecute = command.execute || command.onStart;
 
-    if (cmdName) {
-        commands.set(cmdName.toLowerCase(), command);
+    if (cmdName && typeof cmdExecute === 'function') {
+        const lowerName = cmdName.toLowerCase();
+        commands.set(lowerName, command);
+
+        // এলিয়াস (aliases) রিড করার ইউনিভার্সাল নিয়ম
         const aliasList = command.aliases || command.config?.aliases;
-        if (aliasList && Array.isArray(aliasList)) {
-            aliasList.forEach(alias => {
-                aliases.set(alias.toLowerCase(), cmdName.toLowerCase());
+        if (aliasList) {
+            const list = Array.isArray(aliasList) ? aliasList : [aliasList];
+            list.forEach(alias => {
+                if (alias) aliases.set(alias.toLowerCase(), lowerName);
             });
         }
     }
