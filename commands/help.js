@@ -24,7 +24,7 @@ module.exports = {
   name: "help",
   aliases: ["commands"],
   version: "6.3",
-  author: "EryXenX",
+  author: "𝐒𝐈𝐘𝐀𝐌-𝐇𝐀𝐒𝐀𝐍",
   role: 0,
   shortDescription: "Show all commands",
   longDescription: "Show all commands in clean UI",
@@ -37,14 +37,17 @@ module.exports = {
     const prefix = config.prefix || "/";
     const allCommands = bot.commands;
 
-    const BOT_USERNAME = "YourBotUsername"; 
-    const OWNER_USERNAME = "YourOwnerUsername";
+    const BOT_USERNAME = "SiyamSM_2026Bot";
+    const OWNER_USERNAME = "ri_siyam";
 
     const replyMarkup = {
       inline_keyboard: [
         [
-          { text: "𝐀𝐃𝐃 𝐆𝐑𝐎𝐔𝐏", url: `https://t.me/${BOT_USERNAME}?startgroup=true` },
-          { text: "𝐎𝐖𝐍𝐄𝐑", url: `https://t.me/${OWNER_USERNAME}` }
+          { text: "➕ 𝐀𝐃𝐃 𝐆𝐑𝐎𝐔𝐏", url: `https://t.me/${BOT_USERNAME}?startgroup=true` },
+          { text: "👑 𝐎𝐖𝐍𝐄𝐑", url: `https://t.me/${OWNER_USERNAME}` }
+        ],
+        [
+          { text: "📢 𝐔𝐏𝐃𝐀𝐓𝐄 𝐂𝐇𝐀𝐍𝐍𝐄𝐋", url: `https://t.me/${OWNER_USERNAME}` }
         ]
       ]
     };
@@ -108,12 +111,14 @@ module.exports = {
 `┏━━━━━━━━━━━━━┓
  🧩 𝐂𝐌𝐃 𝐈𝐍𝐅𝐎
 ┗━━━━━━━━━━━━━┛
- ✦ Name     : \`${cmd.name}\`
- ✦ Aliases  : \`${cmd.aliases?.join(", ") || "None"}\`
- ✦ Category : ${categoryFont((cmd.category || "Others").toUpperCase())}
- ✦ Version  : v${cmd.version || "1.0"}
- ✦ Author   : ${cmd.author || "Unknown"}
- ✦ Usage    : \`${prefix}${usage}\`
+ ✦ 𝐅𝐢𝐥𝐞 𝐍𝐚𝐦𝐞 : \`help.js\`
+ ✦ 𝐍𝐚𝐦𝐞     : \`${cmd.name}\`
+ ✦ 𝐀𝐥𝐢𝐚𝐬𝐞𝐬  : \`${cmd.aliases?.join(", ") || "None"}\`
+ ✦ 𝐂𝐚𝐭𝐞𝐠𝐨𝐫𝐲 : ${categoryFont((cmd.category || "Others").toUpperCase())}
+ ✦ 𝐕𝐞𝐫𝐬𝐢𝐨𝐧  : v${cmd.version || "6.3"}
+ ✦ 𝐀𝐮𝐭𝐡𝐨𝐫   : ${cmd.author || "𝐒𝐈𝐘𝐀𝐌-𝐇𝐀𝐒𝐀𝐍"}
+ ✦ 𝐑𝐨𝐥𝐞     : ${cmd.role !== undefined ? cmd.role : 0}
+ ✦ 𝐔𝐬𝐚𝐠𝐞    : \`${prefix}${usage}\`
 ━━━━━━━━━━━━━━━
  📝 ${(cmd.longDescription || cmd.shortDescription || "No description")}`;
 
@@ -138,8 +143,12 @@ module.exports = {
     let msgText =
 `┏━━━━━━━━━━━━━┓
  📜 𝐂𝐌𝐃 𝐇𝐔𝐁
-┗━━━━━━━━━━━━━┛
- 🔧 \`${prefix}\` | 📊 ${allCommands.size} cmds
+┗━━━━━━━━━━━━━=========
+ 📁 𝐅𝐢𝐥𝐞     : \`help.js\`
+ ✍️ 𝐀𝐮𝐭𝐡𝐨𝐫   : 𝐒𝐈𝐘𝐀𝐌-𝐇𝐀𝐒𝐀𝐍
+ 🏷️ 𝐕𝐞𝐫𝐬𝐢𝐨𝐧  : v6.3
+ 🔑 𝐑𝐨𝐥𝐞     : 0
+ 🔧 𝐏𝐫𝐞𝐟𝐢𝐱   : \`${prefix}\` | 📊 ${allCommands.size} cmds
 ━━━━━━━━━━━━━━━\n`;
 
     for (const cat of Object.keys(categories)) {
