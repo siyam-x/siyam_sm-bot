@@ -6,7 +6,7 @@ module.exports = {
   config: {
     name: "filecmd",
     aliases: ["file", "cmdcode"],
-    version: "2.5",
+    version: "2.6",
     author: "𝐒𝐈𝐘𝐀𝐌-𝐇𝐀𝐒𝐀𝐍",
     role: 2,
     category: "owner",
@@ -17,7 +17,7 @@ module.exports = {
 
   name: "filecmd",
   aliases: ["file", "cmdcode"],
-  version: "2.5",
+  version: "2.6",
   author: "𝐒𝐈𝐘𝐀𝐌-𝐇𝐀𝐒𝐀𝐍",
   role: 2,
   category: "owner",
@@ -25,10 +25,12 @@ module.exports = {
   longDescription: "View raw source code of commands safely",
   guide: "/filecmd <commandName>",
 
-  execute: async (bot, msg, args) => {
+  execute: async (bot, msg) => {
     const chatId = msg.chat.id;
     const messageId = msg.message_id;
     const senderID = String(msg.from.id);
+
+    const args = msg.text ? msg.text.trim().split(/\s+/).slice(1) : [];
 
     let adminList = [];
     if (config.adminIDs && Array.isArray(config.adminIDs)) {
