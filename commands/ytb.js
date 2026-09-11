@@ -1,7 +1,5 @@
 const axios = require("axios");
-
-const BOT_USERNAME = "SiyamSM_2026Bot";
-const OWNER_USERNAME = "ri_siyam";
+const config = require("../config");
 
 const searchCache = new Map();
 
@@ -37,7 +35,7 @@ async function fetchWithFallback(urlBuilder) {
 module.exports = {
   name: "ytb",
   aliases: ["yt"],
-  version: "6.3",
+  version: "6.4",
   author: "𝐒𝐈𝐘𝐀𝐌-𝐇𝐀𝐒𝐀𝐍",
   role: 0,
   shortDescription: "YouTube search and downloader with selection buttons",
@@ -50,10 +48,18 @@ module.exports = {
     const messageId = msg.message_id;
     const input = Array.isArray(argsText) ? argsText.join(" ").trim() : (argsText ? argsText.trim() : "");
 
+    let botUsername = config.botUsername || "SiyamSM_2026Bot";
+    try {
+      const me = await bot.getMe();
+      botUsername = me.username;
+    } catch (e) {}
+
+    const ownerUsername = config.ownerUsername || "ri_siyam";
+
     const defaultButtons = [
       [
-        { text: "𝐀𝐃𝐃 𝐆𝐑𝐎𝐔𝐏", url: `https://t.me/${BOT_USERNAME}?startgroup=true` },
-        { text: "𝐎𝐖𝐍𝐄𝐑", url: `https://t.me/${OWNER_USERNAME}` }
+        { text: "𝐀𝐃𝐃 𝐆𝐑𝐎𝐔𝐏", url: `https://t.me/${botUsername}?startgroup=true` },
+        { text: "𝐎𝐖𝐍𝐄𝐑", url: `https://t.me/${ownerUsername}` }
       ]
     ];
 
@@ -147,6 +153,11 @@ module.exports = {
     const selectedSong = results[index];
     await bot.answerCallbackQuery(query.id, { text: `⬇️ ${selectedSong.title} ডাউনলোড শুরু হচ্ছে...` });
 
+    // বাটনে চাপ দেয়ার পর আগের ছবি সম্বলিত সার্চ মেসেজটি সাথে সাথে ডিলিট হবে
+    try {
+      await bot.deleteMessage(chatId, query.message.message_id);
+    } catch (e) {}
+
     const statusMsg = await bot.sendMessage(chatId, `⏳ ডাউনলোড করা হচ্ছে: ${selectedSong.title}`);
 
     try {
@@ -161,13 +172,21 @@ module.exports = {
         await bot.deleteMessage(chatId, statusMsg.message_id);
       } catch (e) {}
 
+      let botUsername = config.botUsername || "SiyamSM_2026Bot";
+      try {
+        const me = await bot.getMe();
+        botUsername = me.username;
+      } catch (e) {}
+
+      const ownerUsername = config.ownerUsername || "ri_siyam";
+
       const caption = `🎵 ${selectedSong.title}\n⏱ সময়: ${selectedSong.time || "N/A"}\n\n👑 𝐎𝐖𝐍𝐄𝐑: 𝆠፝𝐒𝐈𝐘𝐀𝐌-𝐇𝐀𝐒𝐀𝐍 👑\n🧚‍♀️ 𝐍𝐈𝐉𝐇𝐔𝐌 𝐂𝐇𝐀𝐓𝐁𝐎𝐓`;
 
       const replyMarkup = {
         inline_keyboard: [
           [
-            { text: "𝐀𝐃𝐃 𝐆𝐑𝐎𝐔𝐏", url: `https://t.me/${BOT_USERNAME}?startgroup=true` },
-            { text: "𝐎𝐖𝐍𝐄𝐑", url: `https://t.me/${OWNER_USERNAME}` }
+            { text: "𝐀𝐃𝐃 𝐆𝐑𝐎𝐔𝐏", url: `https://t.me/${botUsername}?startgroup=true` },
+            { text: "𝐎𝐖𝐍𝐄𝐑", url: `https://t.me/${ownerUsername}` }
           ]
         ]
       };
@@ -175,7 +194,6 @@ module.exports = {
       await bot.sendAudio(chatId, downloadLink, {
         caption: caption,
         title: selectedSong.title,
-        reply_to_message_id: query.message.reply_to_message ? query.message.reply_to_message.message_id : undefined,
         reply_markup: replyMarkup
       });
 
