@@ -9,7 +9,7 @@ process.on('unhandledRejection', (reason, promise) => {
 });
 
 function startBot() {
-    console.log("Telegram Bot Starting...");
+    console.log("Starting Bot Runner Instance...");
 
     const botProcess = spawn('node', ['index.js'], {
         stdio: 'inherit',
@@ -22,7 +22,7 @@ function startBot() {
     });
 
     botProcess.on('error', (err) => {
-        console.error('Bot Error:', err);
+        console.error('Bot Runner Error:', err);
         setTimeout(startBot, 3000);
     });
 }
