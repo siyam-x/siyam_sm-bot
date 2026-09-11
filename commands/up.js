@@ -1,26 +1,32 @@
 const os = require("os");
+const config = require("../config");
 
 module.exports = {
   name: "up",
-  aliases: ["uptime", "status", "আপ"],
-  version: "2.0.0",
-  author: "SIYAM-HASAN",
+  aliases: ["uptime", "status", "আপ", "system"],
+  version: "2.5.0",
+  author: "𝐒𝐈𝐘𝐀𝐌-𝐇𝐀𝐒𝐀𝐍",
+  role: 0, // Everyone can use
   category: "system",
-  description: "Shows bot uptime and system statistics",
+  shortDescription: "Shows bot uptime and system specs",
+  longDescription: "Displays bot running time, ping, system RAM, CPU usage, and server details.",
+  guide: "{pn}",
 
   execute: async (bot, msg) => {
     const chatId = msg.chat.id;
     const messageId = msg.message_id;
-    const startTime = Date.now();
+    const startPing = Date.now();
 
+    // Uptime Calculation
     const uptimeSeconds = process.uptime();
     const days = Math.floor(uptimeSeconds / 86400);
     const hours = Math.floor((uptimeSeconds % 86400) / 3600);
     const minutes = Math.floor((uptimeSeconds % 3600) / 60);
     const seconds = Math.floor(uptimeSeconds % 60);
 
-    const formattedUptime = `*${days}* দিন, *${hours}* ঘণ্টা, *${minutes}* মিনিট, *${seconds}* সেকেন্ড`;
+    const formattedUptime = `${days} দিন, ${hours} ঘণ্টা, ${minutes} মিনিট, ${seconds} সেকেন্ড`;
 
+    // Memory Calculation
     const memoryUsage = process.memoryUsage();
     const heapUsed = (memoryUsage.heapUsed / 1024 / 1024).toFixed(2);
     const heapTotal = (memoryUsage.heapTotal / 1024 / 1024).toFixed(2);
@@ -29,26 +35,29 @@ module.exports = {
     const freeMem = (os.freemem() / 1024 / 1024 / 1024).toFixed(2);
     const usedMem = (totalMem - freeMem).toFixed(2);
 
-    const ping = Date.now() - startTime;
+    // CPU & OS Details
+    const endPing = Date.now() - startPing;
     const cpuLoad = os.loadavg()[0].toFixed(2);
     const cpuCores = os.cpus().length;
     const platform = os.platform().toUpperCase();
     const nodeVersion = process.version;
 
     const statusText = 
-      `🤖 *BOT SYSTEM STATUS*\n` +
-      `━━━━━━━━━━━━━━━━━━━━\n\n` +
-      `⏱️ *রানিং টাইম:* ${formattedUptime}\n\n` +
-      `📊 *সিস্টেম ডিটেইলস:*\n` +
-      `• *পিং (Ping):* *${ping} ms*\n` +
-      `• *প্রসেস র‌্যাম:* *${heapUsed} MB / ${heapTotal} MB*\n` +
-      `• *সিস্টেম র‌্যাম:* *${usedMem} GB / ${totalMem} GB*\n` +
-      `• *সিপিইউ লোড:* *${cpuLoad}%*\n` +
-      `• *সিপিইউ কোর:* *${cpuCores} Cores*\n` +
-      `• *প্লাটফর্ম:* *${platform}*\n` +
-      `• *নোড ভার্সন:* *${nodeVersion}*\n` +
-      `• *প্রসেস আইডি (PID):* *${process.pid}*\n\n` +
-      `👑 *অনার:* *SIYAM-HASAN*`;
+`┏━━━━━━━━━━━━━━━━┓
+ 🤖 𝐒𝐘𝐒𝐓𝐄𝐌 𝐒𝐓𝐀𝐓𝐔𝐒
+┗━━━━━━━━━━━━━━━━┛
+ ⏱️ 𝐔𝐩𝐭𝐢𝐦𝐞 : \`${formattedUptime}\`
+ 📡 𝐏𝐢𝐧𝐠   : \`${endPing} ms\`
+
+📊 𝐒𝐞𝐫𝐯𝐞𝐫 𝐃𝐞𝐭𝐚𝐢𝐥𝐬:
+ ✦ 𝐏𝐫𝐨𝐜𝐞𝐬𝐬 𝐑𝐀𝐌 : \`${heapUsed} MB / ${heapTotal} MB\`
+ ✦ 𝐒𝐲𝐬𝐭𝐞𝐦 𝐑𝐀𝐌  : \`${usedMem} GB / ${totalMem} GB\`
+ ✦ 𝐂𝐏𝐔 𝐋𝐨𝐚𝐝   : \`${cpuLoad}%\` (\`${cpuCores} Cores\`)
+ ✦ 𝐎𝐒 𝐏𝐥𝐚𝐭𝐟𝐨𝐫𝐦 : \`${platform}\`
+ ✦ 𝐍𝐨𝐝𝐞 𝐕𝐞𝐫𝐬𝐢𝐨𝐧: \`${nodeVersion}\`
+ ✦ 𝐏𝐈𝐃          : \`${process.pid}\`
+━━━━━━━━━━━━━━━━━
+ ✍️ 𝐀𝐮𝐭𝐡𝐨𝐫 : 𝐒𝐈𝐘𝐀𝐌-𝐇𝐀𝐒𝐀𝐍`;
 
     try {
       await bot.sendMessage(chatId, statusText, {
@@ -56,7 +65,7 @@ module.exports = {
         reply_to_message_id: messageId
       });
     } catch (err) {
-      console.error("Uptime Error:", err.message);
+      console.error("Uptime Command Error:", err.message);
     }
   }
 };
