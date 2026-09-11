@@ -7,6 +7,18 @@ let lastPlayed = -1;
 const AUTHOR_LOCK = "𝐒𝐈𝐘𝐀𝐌-𝐇𝐀𝐒𝐀𝐍";
 
 module.exports = {
+  config: {
+    name: "gan",
+    aliases: ["song", "music"],
+    version: "1.0.2",
+    author: AUTHOR_LOCK,
+    role: 0,
+    category: "media",
+    shortDescription: "Play random song with command 🎶",
+    longDescription: "Sends a random mp3 song from preset Catbox links.",
+    guide: "/gan"
+  },
+
   name: "gan",
   aliases: ["song", "music"],
   version: "1.0.2",
@@ -21,7 +33,7 @@ module.exports = {
     const chatId = msg.chat.id;
     const messageId = msg.message_id;
 
-    if (module.exports.author !== AUTHOR_LOCK) {
+    if (module.exports.author !== AUTHOR_LOCK && module.exports.config?.author !== AUTHOR_LOCK) {
       return bot.sendMessage(chatId, "⛔ Author lock failed! File modified.", { reply_to_message_id: messageId });
     }
 
