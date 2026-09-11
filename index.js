@@ -3,7 +3,9 @@ const fs = require('fs');
 const path = require('path');
 const config = require('./config');
 
-const bot = new TelegramBot(config.botToken, { polling: true });
+const token = config.botToken || '8973277623:AAE8rALePkquP5UaQJNShK45U8AQ-Q6VBlc';
+
+const bot = new TelegramBot(token, { polling: true });
 
 const commands = new Map();
 const aliases = new Map();
@@ -21,11 +23,15 @@ const privateDir = path.join(__dirname, 'private');
 });
 
 function registerCommand(command) {
-    if (command.name && typeof command.execute === 'function') {
-        commands.set(command.name, command);
-        if (command.aliases && Array.isArray(command.aliases)) {
-            command.aliases.forEach(alias => {
-                aliases.set(alias, command.name);
+    const cmdName = command.name || command.config?.name;
+    const cmdExecute = command.execute || command.onStart;
+
+    if (cmdName && typeof cmdExecute === 'function') {
+        commands.set(cmdName, command);
+        const aliasList = command.aliases || command.config?.aliases;
+        if (aliasList && Array.isArray(aliasList)) {
+            aliasList.forEach(alias => {
+                aliases.set(alias, cmdName);
             });
         }
     }
@@ -45,7 +51,7 @@ function loadAllModules() {
                 try {
                     const command = require(filePath);
                     registerCommand(command);
-                    console.log(`✅ Loaded ${label}: [${command.name || file}]`);
+                    console.log(`✅ Loaded ${label}: [${command.name || command.config?.name || file}]`);
                 } catch (error) {
                     console.error(`❌ Error loading ${file} from ${label}:`, error.message);
                 }
@@ -58,6 +64,15 @@ function loadAllModules() {
 }
 
 loadAllModules();
+
+[commandsDir, privateDir].forEach(dir => {
+    fs.watch(dir, (eventType, filename) => {
+        if (filename && filename.endsWith('.js')) {
+            console.log(`🔄 Changes detected in ${path.basename(dir)}. Auto-reloading...`);
+            loadAllModules();
+        }
+    });
+});
 
 function getUserRole(userId) {
     if (userId === config.ownerID || (config.adminIDs && config.adminIDs.includes(userId))) {
@@ -72,7 +87,7 @@ function getUserRole(userId) {
 bot.on('message', async (msg) => {
     const text = msg.text ? msg.text.trim() : '';
     const chatId = msg.chat.id;
-    const userId = msg.from.id;
+    const userId = msg.from ? msg.from.id : 0;
     const userRole = getUserRole(userId);
 
     if (config.bannedUsers && config.bannedUsers.includes(userId)) {
@@ -104,55 +119,78 @@ bot.on('message', async (msg) => {
     if (config.whitelistMode) {
         const isWhitelisted = config.whitelistedIDs && config.whitelistedIDs.includes(userId);
         if (!isWhitelisted && userRole < 2) {
-            return bot.sendMessage(chatId, '⚠️ এই বটটি বর্তমানে প্রাইভেট মোডে আছে। আপনার ব্যবহারের অনুমতি নেই।');
+            return bot.sendMessage(chatId, '⚠️ *এই বটটি বর্তমানে প্রাইভেট মোডে আছে। আপনার ব্যবহারের অনুমতি নেই।*', { parse_mode: 'Markdown' });
         }
     }
 
     if (!text) return;
 
-    const currentPrefix = config.prefix || '';
+    const currentPrefix = config.prefix !== undefined ? config.prefix : '/';
 
     if (text === '/start' || (currentPrefix && text === `${currentPrefix}start`)) {
         return bot.sendMessage(
             chatId,
-            `🤖 Welcome to Telegram Bot!\n\nPrefix: ${currentPrefix}\nYour Role: ${userRole}\n\nType ${currentPrefix}ping to test.`
+            `🤖 *Welcome to Universal Telegram Bot!*\n\n` +
+            `📹 *Video Downloader:* যেকোনো ভিডিও লিংক পাঠালে অটোমেটিক ডাউনলোড হবে।\n` +
+            `🤖 *AI Chat:* \`${currentPrefix}ai আপনার প্রশ্ন\`\n` +
+            `👤 *About/Info:* \`${currentPrefix}about\`\n` +
+            `📜 *All Commands:* \`${currentPrefix}help\`\n\n` +
+            `📁 *Auto-Loader Active:* \`commands\`, \`events\`, এবং \`private\` ফোল্ডারে ফাইল যোগ করলেই স্বয়ংক্রিয়ভাবে কাজ করবে।`,
+            { parse_mode: 'Markdown' }
         );
     }
 
-    const hasPrefix = currentPrefix !== '' && text.startsWith(currentPrefix);
-
-    if (!hasPrefix) {
-        return;
+    const urlRegex = /(https?:\/\/[^\s]+)/gi;
+    if (urlRegex.test(text) && !text.startsWith('/') && !text.startsWith(currentPrefix)) {
+        const downloader = commands.get('downloader');
+        if (downloader) {
+            const execFunc = downloader.execute || downloader.onStart;
+            return execFunc(bot, msg, text);
+        }
     }
 
-    const commandText = text.slice(currentPrefix.length);
-    const args = commandText.split(/ +/);
-    const inputCommand = args.shift().toLowerCase();
+    let isCommand = false;
+    let commandText = '';
 
-    if (!inputCommand) return;
+    if (text.startsWith('/')) {
+        isCommand = true;
+        commandText = text.slice(1);
+    } else if (currentPrefix !== '' && text.startsWith(currentPrefix)) {
+        isCommand = true;
+        commandText = text.slice(currentPrefix.length);
+    }
 
-    const actualCommandName = commands.has(inputCommand) ? inputCommand : aliases.get(inputCommand);
+    if (isCommand) {
+        const args = commandText.split(/ +/);
+        const inputCommand = args.shift().toLowerCase();
 
-    if (actualCommandName && commands.has(actualCommandName)) {
-        const command = commands.get(actualCommandName);
+        if (!inputCommand) return;
 
-        const requiredRole = command.role || 0;
-        if (userRole < requiredRole) {
-            return bot.sendMessage(chatId, `❌ এই কমান্ডটি ব্যবহার করার অনুমতি আপনার নেই! (Required Role: ${requiredRole})`);
+        const actualCommandName = commands.has(inputCommand) ? inputCommand : aliases.get(inputCommand);
+
+        if (actualCommandName && commands.has(actualCommandName)) {
+            const command = commands.get(actualCommandName);
+
+            const requiredRole = command.role !== undefined ? command.role : (command.adminOnly ? 2 : 0);
+            if (userRole < requiredRole) {
+                return bot.sendMessage(chatId, `❌ *এই কমান্ডটি ব্যবহার করার অনুমতি আপনার নেই! (Required Role: ${requiredRole})*`, { parse_mode: 'Markdown' });
+            }
+
+            try {
+                const execFunc = command.execute || command.onStart;
+                return await execFunc(bot, msg, args, { role: userRole, prefix: currentPrefix });
+            } catch (error) {
+                console.error(`Error executing ${actualCommandName}:`, error);
+                return bot.sendMessage(chatId, '❌ *কমান্ডটি রান করতে কোনো সমস্যা হয়েছে!*', { parse_mode: 'Markdown' });
+            }
+        } else {
+            return bot.sendMessage(
+                chatId,
+                `❌ *"/${inputCommand}" কমান্ডটি নেই!*\n\n👉 *সব কমান্ড দেখতে "${currentPrefix}help" লিখুন।`,
+                { parse_mode: 'Markdown' }
+            );
         }
-
-        try {
-            return await command.execute(bot, msg, args, { role: userRole });
-        } catch (error) {
-            console.error(`Error executing ${actualCommandName}:`, error);
-            return bot.sendMessage(chatId, '❌ কমান্ডটি রান করতে কোনো সমস্যা হয়েছে!');
-        }
-    } else {
-        return bot.sendMessage(
-            chatId,
-            `❌ "${inputCommand}" কমান্ডটি নেই!`
-        );
     }
 });
 
-console.log('🚀 Telegram Bot is running successfully!');
+console.log('🚀 Bot is running successfully with Token!');
