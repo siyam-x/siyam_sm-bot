@@ -26,12 +26,12 @@ function registerCommand(command) {
     const cmdName = command.name || command.config?.name;
     const cmdExecute = command.execute || command.onStart;
 
-    if (cmdName && typeof cmdExecute === 'function') {
-        commands.set(cmdName, command);
+    if (cmdName) {
+        commands.set(cmdName.toLowerCase(), command);
         const aliasList = command.aliases || command.config?.aliases;
         if (aliasList && Array.isArray(aliasList)) {
             aliasList.forEach(alias => {
-                aliases.set(alias, cmdName);
+                aliases.set(alias.toLowerCase(), cmdName.toLowerCase());
             });
         }
     }
@@ -84,13 +84,12 @@ function getUserRole(userId) {
     return 0;
 }
 
-// ==================== CALLBACK QUERY HANDLER (NEW) ====================
+// ==================== CALLBACK QUERY HANDLER ====================
 bot.on('callback_query', async (query) => {
     const data = query.data;
     if (!data) return;
 
     try {
-        // YTB Command Callbacks
         if (data.startsWith('ytdl_')) {
             const ytbCmd = commands.get('ytb') || commands.get('yt');
             if (ytbCmd && typeof ytbCmd.handleCallback === 'function') {
@@ -98,7 +97,6 @@ bot.on('callback_query', async (query) => {
             }
         }
 
-        // CMD Manager Callbacks
         if (data.startsWith('cmd_')) {
             const cmdManager = commands.get('cmd');
             if (cmdManager && typeof cmdManager.handleCallback === 'function') {
@@ -213,7 +211,7 @@ bot.on('message', async (msg) => {
         } else {
             return bot.sendMessage(
                 chatId,
-                `❌ *"/${inputCommand}" কমান্ডটি নেই!*\n\n👉 *সব কমান্ড দেখতে "${currentPrefix}help" লিখুন।*`,
+                `❌ *"/${inputCommand}" কমান্ডটি নেই!*\n\n👉 *সব কমান্ড দেখতে "${currentPrefix}help" লিখুন।`,
                 { parse_mode: 'Markdown' }
             );
         }
