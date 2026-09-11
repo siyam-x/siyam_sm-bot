@@ -18,21 +18,11 @@ module.exports = {
     guide: "/uid2"
   },
 
-  name: "uid2",
-  aliases: ["id2", "userinfo2"],
-  version: "1.0.3",
-  author: AUTHOR_LOCK,
-  role: 0,
-  category: "info",
-  shortDescription: "Get user's UID and Stylist Banner",
-  longDescription: "Generates an advanced Cool style banner with User ID and Avatar.",
-  guide: "/uid2",
-
   execute: async (bot, msg) => {
     const chatId = msg.chat.id;
     const messageId = msg.message_id;
 
-    if (module.exports.author !== AUTHOR_LOCK && module.exports.config?.author !== AUTHOR_LOCK) {
+    if (module.exports.config.author !== AUTHOR_LOCK) {
       return bot.sendMessage(chatId, "⛔ Author lock failed!", { reply_to_message_id: messageId });
     }
 
