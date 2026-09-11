@@ -79,6 +79,7 @@ bot.on('message', async (msg) => {
         return bot.sendMessage(chatId, 'আপনি ব্যান');
     }
 
+    let eventHandled = false;
     if (fs.existsSync(eventsDir)) {
         const eventFiles = fs.readdirSync(eventsDir).filter(file => file.endsWith('.js'));
         for (const file of eventFiles) {
@@ -87,13 +88,18 @@ bot.on('message', async (msg) => {
                 delete require.cache[require.resolve(eventPath)];
                 const event = require(eventPath);
                 if (event.execute && typeof event.execute === 'function') {
-                    event.execute(bot, msg, userRole);
+                    const handled = await event.execute(bot, msg, userRole);
+                    if (handled) {
+                        eventHandled = true;
+                    }
                 }
             } catch (err) {
                 console.error(`Event ${file} Error:`, err.message);
             }
         }
     }
+
+    if (eventHandled) return;
 
     if (config.whitelistMode) {
         const isWhitelisted = config.whitelistedIDs && config.whitelistedIDs.includes(userId);
@@ -104,22 +110,22 @@ bot.on('message', async (msg) => {
 
     if (!text) return;
 
-    const currentPrefix = config.prefix;
+    const currentPrefix = config.prefix || '';
 
-    if (text === '/start' || text === `${currentPrefix}start`) {
+    if (text === '/start' || (currentPrefix && text === `${currentPrefix}start`)) {
         return bot.sendMessage(
             chatId,
             `🤖 Welcome to Telegram Bot!\n\nPrefix: ${currentPrefix}\nYour Role: ${userRole}\n\nType ${currentPrefix}ping to test.`
         );
     }
 
-    let commandText = '';
-    if (currentPrefix === '' || text.startsWith(currentPrefix)) {
-        commandText = currentPrefix === '' ? text : text.slice(currentPrefix.length);
-    } else {
+    const hasPrefix = currentPrefix !== '' && text.startsWith(currentPrefix);
+
+    if (!hasPrefix) {
         return;
     }
 
+    const commandText = text.slice(currentPrefix.length);
     const args = commandText.split(/ +/);
     const inputCommand = args.shift().toLowerCase();
 
