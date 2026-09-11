@@ -84,6 +84,33 @@ function getUserRole(userId) {
     return 0;
 }
 
+// ==================== CALLBACK QUERY HANDLER (NEW) ====================
+bot.on('callback_query', async (query) => {
+    const data = query.data;
+    if (!data) return;
+
+    try {
+        // YTB Command Callbacks
+        if (data.startsWith('ytdl_')) {
+            const ytbCmd = commands.get('ytb') || commands.get('yt');
+            if (ytbCmd && typeof ytbCmd.handleCallback === 'function') {
+                return await ytbCmd.handleCallback(bot, query);
+            }
+        }
+
+        // CMD Manager Callbacks
+        if (data.startsWith('cmd_')) {
+            const cmdManager = commands.get('cmd');
+            if (cmdManager && typeof cmdManager.handleCallback === 'function') {
+                return await cmdManager.handleCallback(bot, query);
+            }
+        }
+    } catch (err) {
+        console.error('Callback Query Error:', err.message);
+    }
+});
+
+// ==================== MESSAGE HANDLER ====================
 bot.on('message', async (msg) => {
     const text = msg.text ? msg.text.trim() : '';
     const chatId = msg.chat.id;
@@ -171,7 +198,7 @@ bot.on('message', async (msg) => {
         if (actualCommandName && commands.has(actualCommandName)) {
             const command = commands.get(actualCommandName);
 
-            const requiredRole = command.role !== undefined ? command.role : (command.adminOnly ? 2 : 0);
+            const requiredRole = command.role !== undefined ? command.role : (command.config?.role !== undefined ? command.config.role : (command.adminOnly ? 2 : 0));
             if (userRole < requiredRole) {
                 return bot.sendMessage(chatId, `❌ *এই কমান্ডটি ব্যবহার করার অনুমতি আপনার নেই! (Required Role: ${requiredRole})*`, { parse_mode: 'Markdown' });
             }
@@ -186,7 +213,7 @@ bot.on('message', async (msg) => {
         } else {
             return bot.sendMessage(
                 chatId,
-                `❌ *"/${inputCommand}" কমান্ডটি নেই!*\n\n👉 *সব কমান্ড দেখতে "${currentPrefix}help" লিখুন।`,
+                `❌ *"/${inputCommand}" কমান্ডটি নেই!*\n\n👉 *সব কমান্ড দেখতে "${currentPrefix}help" লিখুন।*`,
                 { parse_mode: 'Markdown' }
             );
         }
