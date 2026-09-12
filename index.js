@@ -198,7 +198,9 @@ bot.on('message', async (msg) => {
                     const eventPath = path.join(eventsDir, file);
                     delete require.cache[require.resolve(eventPath)];
                     const event = require(eventPath);
-                    if (event.execute && typeof event.execute === 'function') {
+                    if (event.onStart && typeof event.onStart === 'function') {
+                        await event.onStart({ bot, msg, userRole });
+                    } else if (event.execute && typeof event.execute === 'function') {
                         const handled = await event.execute(bot, msg, userRole);
                         if (handled) eventHandled = true;
                     }
