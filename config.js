@@ -5,16 +5,18 @@ module.exports = {
     prefix: ',',
     ownerID: 7683797493,
     
-    // Role 2: Super Admin / Owner
     adminIDs: [
-        7683797493
+        7683797493,
+        1234567890, 
+        9876543210
     ],
 
-    // Role 1: Moderator / Sub-Admin
     modIDs: [],
 
-    whitelistMode: false,
-    whitelistedIDs: [
-        7683797493
-    ]
+    whitelistMode: {
+        enable: false,
+        whiteListIds: [
+            "7683797493"
+        ]
+    }
 };
