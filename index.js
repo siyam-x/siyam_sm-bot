@@ -3,7 +3,6 @@ const fs = require('fs');
 const path = require('path');
 const config = require('./config');
 
-// ১. গ্লোবাল এরর হ্যান্ডলার (বট যেন ক্র্যাশ বা হ্যাং না করে)
 process.on('uncaughtException', (err) => {
     console.error('Crash Prevented - Uncaught Exception:', err.message);
 });
@@ -14,7 +13,35 @@ process.on('unhandledRejection', (reason, promise) => {
 
 const token = config.botToken;
 
-// ২. সেফ ও অটো-রিকানেক্ট পোলিং সেটিংস
+const langPath = path.join(__dirname, 'en.lang.txt');
+let langData = {};
+
+function loadLangFile() {
+    if (fs.existsSync(langPath)) {
+        const content = fs.readFileSync(langPath, 'utf8');
+        const lines = content.split('\n');
+        for (const line of lines) {
+            if (line.includes('=') && !line.startsWith('#')) {
+                const index = line.indexOf('=');
+                const key = line.substring(0, index).trim();
+                const val = line.substring(index + 1).trim();
+                langData[key] = val;
+            }
+        }
+    }
+}
+loadLangFile();
+
+function getLangText(key, placeholders = []) {
+    let text = langData[key] || '';
+    if (!text) return '';
+    placeholders.forEach((val, idx) => {
+        text = text.replace(new RegExp(`%${idx + 1}`, 'g'), val);
+    });
+    text = text.replace(/\\n/g, '\n');
+    return text;
+}
+
 const bot = new TelegramBot(token, { 
     polling: {
         interval: 300,
@@ -25,7 +52,6 @@ const bot = new TelegramBot(token, {
     }
 });
 
-// পোলিং ড্রপ বা নেটওয়ার্ক এরর হ্যান্ডলার
 bot.on('polling_error', (error) => {
     console.log(`[Polling Error]: ${error.message}`);
 });
@@ -79,9 +105,9 @@ function loadAllModules() {
                 try {
                     const command = require(filePath);
                     registerCommand(command);
-                    console.log(`✅ Loaded ${label}: [${command.name || command.config?.name || file}]`);
+                    console.log(`Loaded ${label}: [${command.name || command.config?.name || file}]`);
                 } catch (error) {
-                    console.error(`❌ Error loading ${file} from ${label}:`, error.message);
+                    console.error(`Error loading ${file} from ${label}:`, error.message);
                 }
             }
         }
@@ -96,7 +122,7 @@ loadAllModules();
 [commandsDir, privateDir].forEach(dir => {
     fs.watch(dir, (eventType, filename) => {
         if (filename && filename.endsWith('.js')) {
-            console.log(`🔄 Changes detected in ${path.basename(dir)}. Reloading...`);
+            console.log(`Changes detected in ${path.basename(dir)}. Reloading...`);
             loadAllModules();
         }
     });
@@ -104,15 +130,16 @@ loadAllModules();
 
 function getUserRole(userId) {
     if (userId === config.ownerID || (config.adminIDs && config.adminIDs.includes(userId))) {
-        return 2; // Super Admin / Owner
+        return 2;
     }
     if (config.modIDs && config.modIDs.includes(userId)) {
-        return 1; // Moderator
+        return 1;
     }
-    return 0; // Regular User
+    return 0;
 }
 
-// ==================== CALLBACK QUERY HANDLER ====================
+const activeReplies = new Map();
+
 bot.on('callback_query', async (query) => {
     const data = query.data;
     if (!data) return;
@@ -129,7 +156,6 @@ bot.on('callback_query', async (query) => {
     }
 });
 
-// ==================== MESSAGE HANDLER ====================
 bot.on('message', async (msg) => {
     try {
         if (!msg) return;
@@ -138,6 +164,31 @@ bot.on('message', async (msg) => {
         const chatId = msg.chat.id;
         const userId = msg.from ? msg.from.id : 0;
         const userRole = getUserRole(userId);
+
+        if (msg.reply_to_message) {
+            const replyId = msg.reply_to_message.message_id;
+            if (activeReplies.has(replyId)) {
+                const replyData = activeReplies.get(replyId);
+                const command = commands.get(replyData.commandName);
+                if (command && typeof command.onReply === 'function') {
+                    return await command.onReply({
+                        bot,
+                        msg,
+                        Reply: replyData,
+                        getLang: (key, ...args) => {
+                            if (command.langs && command.langs.en && command.langs.en[key]) {
+                                let str = command.langs.en[key];
+                                args.forEach((val, idx) => {
+                                    str = str.replace(new RegExp(`%${idx + 1}`, 'g'), val);
+                                });
+                                return str;
+                            }
+                            return key;
+                        }
+                    });
+                }
+            }
+        }
 
         let eventHandled = false;
         if (fs.existsSync(eventsDir)) {
@@ -159,10 +210,10 @@ bot.on('message', async (msg) => {
 
         if (eventHandled) return;
 
-        if (config.whitelistMode) {
-            const isWhitelisted = config.whitelistedIDs && config.whitelistedIDs.includes(userId);
+        if (config.whitelistMode && config.whitelistMode.enable) {
+            const isWhitelisted = config.whitelistMode.whiteListIds && config.whitelistMode.whiteListIds.includes(String(userId));
             if (!isWhitelisted && userRole < 2) {
-                return bot.sendMessage(chatId, '⚠️ *এই বটটি বর্তমানে প্রাইভেট মোডে রয়েছে। আপনার এটি ব্যবহারের পারমিশন নেই।*', { parse_mode: 'Markdown' });
+                return bot.sendMessage(chatId, 'এই বটটি বর্তমানে হোয়াইটলিস্ট মোডে রয়েছে। আপনার এটি ব্যবহারের পারমিশন নেই।');
             }
         }
 
@@ -170,14 +221,14 @@ bot.on('message', async (msg) => {
 
         const currentPrefix = config.prefix !== undefined ? config.prefix : '/';
 
+        if (text === currentPrefix) {
+            return;
+        }
+
         if (text === '/start' || (currentPrefix && text === `${currentPrefix}start`)) {
             return bot.sendMessage(
                 chatId,
-                `🤖 **Welcome to Telegram Bot!**\n\n` +
-                `📜 **All Commands:** \`${currentPrefix}help\`\n` +
-                `🛠 **Admin Control:** \`${currentPrefix}cmd\`\n\n` +
-                `📂 **Auto-Loader:** Active and watching for script changes.`,
-                { parse_mode: 'Markdown' }
+                `Welcome to Telegram Bot!\n\nAll Commands: ${currentPrefix}help\nAdmin Control: ${currentPrefix}cmd`
             );
         }
 
@@ -205,22 +256,55 @@ bot.on('message', async (msg) => {
                 const requiredRole = command.role !== undefined ? command.role : (command.config?.role !== undefined ? command.config.role : 0);
 
                 if (userRole < requiredRole) {
-                    return bot.sendMessage(chatId, `❌ **এই কমান্ডটি ব্যবহারের অনুমতি নেই! (প্রয়োজনীয় রোল: Role ${requiredRole})**`, { parse_mode: 'Markdown' });
+                    let errorMsg = '';
+                    if (requiredRole >= 2) {
+                        errorMsg = getLangText('handlerEvents.onlyAdminBot2', [actualCommandName]) || `ONLY MY BOSS CAN USE THE COMMAND "${actualCommandName}"`;
+                    } else {
+                        errorMsg = getLangText('handlerEvents.onlyAdmin', [actualCommandName]) || `ONLY ADMINISTRATORS CAN USE THE COMMAND "${actualCommandName}"`;
+                    }
+                    return bot.sendMessage(chatId, errorMsg);
                 }
 
                 try {
                     const execFunc = command.execute || command.onStart;
-                    return await execFunc(bot, msg, args, { role: userRole, prefix: currentPrefix });
+                    return await execFunc({
+                        bot,
+                        msg,
+                        args,
+                        role: userRole,
+                        prefix: currentPrefix,
+                        commandName: actualCommandName,
+                        getLang: (key, ...placeholders) => {
+                            if (command.langs && command.langs.en && command.langs.en[key]) {
+                                let str = command.langs.en[key];
+                                placeholders.forEach((val, idx) => {
+                                    str = str.replace(new RegExp(`%${idx + 1}`, 'g'), val);
+                                });
+                                return str;
+                            }
+                            return key;
+                        },
+                        usersData: {
+                            getName: async (uid) => {
+                                try {
+                                    const chatMember = await bot.getChatMember(chatId, uid);
+                                    return chatMember.user.first_name || "User";
+                                } catch {
+                                    return "User";
+                                }
+                            }
+                        }
+                    });
                 } catch (error) {
                     console.error(`Error executing ${actualCommandName}:`, error);
-                    return bot.sendMessage(chatId, '❌ **কমান্ডটি রান করতে সমস্যা হয়েছে!**', { parse_mode: 'Markdown' });
+                    return bot.sendMessage(chatId, 'কমান্ডটি রান করতে সমস্যা হয়েছে!');
                 }
             } else {
-                return bot.sendMessage(
-                    chatId,
-                    `❌ **"${currentPrefix}${inputCommand}" নাম নিয়ে কোনো কমান্ড পাওয়া যায়নি।**\n👉 সকল কমান্ড জানতে \`${currentPrefix}help\` টাইপ করুন।`,
-                    { parse_mode: 'Markdown' }
-                );
+                let notFoundMsg = getLangText('handlerEvents.commandNotFound', [inputCommand, currentPrefix]);
+                if (!notFoundMsg) {
+                    notFoundMsg = `COMMAND "${inputCommand}" DOES NOT EXIST, TYPE ${currentPrefix}help TO SEE ALL AVAILABLE COMMANDS`;
+                }
+                return bot.sendMessage(chatId, notFoundMsg);
             }
         }
     } catch (globalMsgErr) {
@@ -228,4 +312,4 @@ bot.on('message', async (msg) => {
     }
 });
 
-console.log('🚀 Telegram Bot Engine Active and Ready!');
+console.log('Telegram Bot Engine Active and Ready!');
